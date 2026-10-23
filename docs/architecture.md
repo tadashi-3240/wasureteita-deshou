@@ -53,6 +53,13 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 4. 保存時に latitude／longitude／address も反映（`ReminderStore.update` → 位置監視再同期）
 5. ビルド識別: `build: stage5-editmap-1`
 
+## App Icon（stage5-icon-1）
+
+1. `Assets.xcassets/AppIcon.appiconset` に 1024×1024 Single Size（`AppIcon-1024.png`）を配置
+2. ソース原寸は `Resources/wasureteita-app-icon-source.png`（1254×1254）
+3. 角丸はシステム任せ（フルブリード正方形）
+4. ビルド識別: `build: stage5-icon-1`
+
 ## 接近通知の重複抑止（stage4-dedupe-1）
 
 1. `handleApproachEnter` は通知投稿の **前に** `notifiedWhileInside` を同期的に立てる（失敗時のみ解除）
