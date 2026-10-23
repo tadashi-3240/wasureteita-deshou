@@ -1,7 +1,7 @@
 import CoreLocation
 import SwiftUI
 
-/// 内容確認 → 場所の決め方（店舗検索／自宅）→ 候補／地図 → 予定保存。
+/// 内容確認 → 決定 → 場所の決め方（店舗検索／自宅／地図）→ 候補／地図 → 予定保存。
 struct SimpleUtteranceConfirmView: View {
     let rawText: String
     let knownPlaceNames: [String]
@@ -30,9 +30,11 @@ struct SimpleUtteranceConfirmView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
+    private static let buildTag = "build: stage5-decide-1"
 
     private enum Phase: Equatable {
         case review
+        case placeMethod
         case searching
         case candidates
         case map
@@ -53,8 +55,10 @@ struct SimpleUtteranceConfirmView: View {
     var body: some View {
         Group {
             switch phase {
-            case .review, .searching:
+            case .review:
                 reviewContent
+            case .placeMethod, .searching:
+                placeMethodContent
             case .candidates:
                 PlaceCandidateListView(
                     candidates: candidates,
@@ -111,7 +115,8 @@ struct SimpleUtteranceConfirmView: View {
 
     private var phaseTitle: String {
         switch phase {
-        case .review, .searching: return "内容の確認"
+        case .review: return "内容の確認"
+        case .placeMethod, .searching: return "場所の決め方"
         case .candidates: return "場所の候補"
         case .map: return "地図から指定"
         case .confirm: return "登録の確認"
@@ -122,13 +127,17 @@ struct SimpleUtteranceConfirmView: View {
     private var reviewContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-parse-1")
+                Text(Self.buildTag)
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
 
                 Text("内容の確認")
                     .font(.system(size: 28, weight: .bold))
+
+                Text("場所と用事を確認し、「決定」で次に進みます。")
+                    .font(.system(size: 17))
+                    .foregroundStyle(.secondary)
 
                 Text("入力した文章")
                     .font(.system(size: 16, weight: .semibold))
@@ -144,7 +153,6 @@ struct SimpleUtteranceConfirmView: View {
                     TextField("例：金古のセブンイレブン / 自宅", text: $placeText)
                         .font(.system(size: 22))
                         .textFieldStyle(.roundedBorder)
-                        .disabled(phase == .searching || isResolvingHome)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -154,11 +162,65 @@ struct SimpleUtteranceConfirmView: View {
                     TextField("例：牛乳を買う / 洗濯をする", text: $taskText)
                         .font(.system(size: 22))
                         .textFieldStyle(.roundedBorder)
-                        .disabled(phase == .searching || isResolvingHome)
                 }
 
                 if suggestsHome {
-                    Text("「自宅」「帰ったら」などの言い回しなので、下の「自宅を使う」が向いています。")
+                    Text("「自宅」「帰ったら」などの言い回しです。決定のあと「自宅を使う」が向いています。")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 16))
+                        .foregroundStyle(.red)
+                }
+
+                Button(action: confirmContents) {
+                    Text("決定")
+                        .font(.system(size: 24, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color("BrandAccent"))
+                .disabled(taskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.top, 8)
+
+                Text("用事は必須です。場所が空でも、次の画面で自宅や地図から指定できます。")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+
+                Button(action: onBack) {
+                    Text("戻る")
+                        .font(.system(size: 20, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(24)
+        }
+    }
+
+    private var placeMethodContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(Self.buildTag)
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+
+                Text("場所の決め方")
+                    .font(.system(size: 28, weight: .bold))
+
+                labeled("場所", placeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? "（未入力・次で指定）"
+                        : placeText)
+                labeled("用事", taskText)
+
+                if suggestsHome {
+                    Text("「自宅」「帰ったら」などの言い回しなので、「自宅を使う」が向いています。")
                         .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                 }
@@ -184,10 +246,6 @@ struct SimpleUtteranceConfirmView: View {
                     }
                     .padding(.top, 8)
                 } else {
-                    Text("場所の決め方")
-                        .font(.system(size: 18, weight: .semibold))
-                        .padding(.top, 8)
-
                     Button(action: startSearch) {
                         Text("店舗を検索")
                             .font(.system(size: 20, weight: .semibold))
@@ -196,8 +254,7 @@ struct SimpleUtteranceConfirmView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color("BrandAccent"))
-                    .disabled(taskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                              || placeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(placeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button {
                         Task { await useHomePlace() }
@@ -209,7 +266,6 @@ struct SimpleUtteranceConfirmView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(suggestsHome ? Color("BrandAccent") : Color.gray)
-                    .disabled(taskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     if homeStore.isConfigured, let home = homeStore.home {
                         Text("登録済みの自宅: \(home.name)" + (home.address.isEmpty ? "" : "（\(home.address)）"))
@@ -221,15 +277,18 @@ struct SimpleUtteranceConfirmView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("検索せず地図から指定") {
+                    Button("地図から指定") {
                         phase = .map
                     }
                     .font(.system(size: 17))
                     .frame(maxWidth: .infinity)
-                    .disabled(taskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-                    Button(action: onBack) {
-                        Text("戻る")
+                    Button {
+                        phase = .review
+                        errorMessage = nil
+                        homeHintMessage = nil
+                    } label: {
+                        Text("内容をやり直す")
                             .font(.system(size: 20, weight: .semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
@@ -244,7 +303,7 @@ struct SimpleUtteranceConfirmView: View {
     private var registerConfirmContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-parse-1")
+                Text(Self.buildTag)
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -274,7 +333,7 @@ struct SimpleUtteranceConfirmView: View {
 
                 Button("場所を選び直す") {
                     selected = nil
-                    phase = .review
+                    phase = .placeMethod
                 }
                 .font(.system(size: 17))
                 .frame(maxWidth: .infinity)
@@ -285,7 +344,7 @@ struct SimpleUtteranceConfirmView: View {
 
     private var savedContent: some View {
         VStack(spacing: 24) {
-            Text("build: stage5-parse-1")
+            Text(Self.buildTag)
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
 
@@ -320,6 +379,18 @@ struct SimpleUtteranceConfirmView: View {
             Text(value)
                 .font(.system(size: 22, weight: .medium))
         }
+    }
+
+    /// 内容確認済みとして、場所の決め方へ進む。
+    private func confirmContents() {
+        errorMessage = nil
+        homeHintMessage = nil
+        let task = taskText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !task.isEmpty else {
+            errorMessage = "用事を入力してください。"
+            return
+        }
+        phase = .placeMethod
     }
 
     private func startSearch() {
@@ -358,7 +429,7 @@ struct SimpleUtteranceConfirmView: View {
                     applySearchResults(savedOnly, placePhrase: place)
                 } else {
                     errorMessage = error.localizedDescription
-                    phase = .review
+                    phase = .placeMethod
                 }
             }
         }

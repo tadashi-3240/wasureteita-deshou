@@ -60,6 +60,13 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 3. 角丸はシステム任せ（フルブリード正方形）
 4. ビルド識別: `build: stage5-icon-1`
 
+## 内容確認の決定（stage5-decide-1）
+
+1. 内容確認フェーズは場所／用事の編集と大きな **「決定」** のみ（用事必須）
+2. 決定後に **場所の決め方**: 店舗を検索／自宅を使う／地図から指定
+3. `SimpleUtteranceConfirmView` と `PlaceResolveView` で同じ二段構成
+4. ビルド識別: `build: stage5-decide-1`
+
 ## 接近通知の重複抑止（stage4-dedupe-1）
 
 1. `handleApproachEnter` は通知投稿の **前に** `notifiedWhileInside` を同期的に立てる（失敗時のみ解除）
@@ -84,7 +91,7 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 ## 自宅（stage4-home-1）
 
 1. 設定「自宅を設定」: 名前（既定「自宅」）・緯度経度・住所（任意）。いまの位置（When In Use）または地図ピン
-2. 内容確認のあと場所の決め方: **店舗を検索** / **自宅を使う**（未設定ならその場で位置取得 or 設定へ）
+2. 内容確認で **決定** → 場所の決め方: **店舗を検索** / **自宅を使う** / **地図**（未設定ならその場で位置取得 or 設定へ）
 3. パースで「自宅で〜」「家に着いたら〜」「帰ったら〜」→ `suggestsHome`＋用事抽出
 4. 通知・滞在解除・履歴は既存 Reminder / LocationMonitor（`placeName` が「自宅」等）
 

@@ -1,7 +1,7 @@
 import CoreLocation
 import SwiftUI
 
-/// 「次へ」のあと: 場所／用事の表示 → MapKit 検索 → 一意／候補／地図。
+/// 「次へ」のあと: 内容確認 → 決定 → 場所の決め方 → MapKit 検索 → 一意／候補／地図。
 struct PlaceResolveView: View {
     let rawText: String
     let knownPlaceNames: [String]
@@ -23,9 +23,11 @@ struct PlaceResolveView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
+    private static let buildTag = "build: stage5-decide-1"
 
     enum Phase: Equatable {
         case review
+        case placeMethod
         case searching
         case candidates
         case map
@@ -45,8 +47,10 @@ struct PlaceResolveView: View {
     var body: some View {
         Group {
             switch phase {
-            case .review, .searching:
+            case .review:
                 reviewContent
+            case .placeMethod, .searching:
+                placeMethodContent
             case .candidates:
                 PlaceCandidateListView(
                     candidates: candidates,
@@ -87,7 +91,8 @@ struct PlaceResolveView: View {
 
     private var phaseNavigationTitle: String {
         switch phase {
-        case .review, .searching: return "内容の確認"
+        case .review: return "内容の確認"
+        case .placeMethod, .searching: return "場所の決め方"
         case .candidates: return "場所の候補"
         case .map: return "地図から指定"
         case .confirm: return "登録の確認"
@@ -98,6 +103,11 @@ struct PlaceResolveView: View {
     private var reviewContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                Text(Self.buildTag)
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+
                 Text("入力した文章")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -111,7 +121,6 @@ struct PlaceResolveView: View {
                     TextField("例：金古のセブンイレブン", text: $editablePlace)
                         .font(.system(size: 22))
                         .textFieldStyle(.roundedBorder)
-                        .disabled(phase == .searching)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -121,8 +130,48 @@ struct PlaceResolveView: View {
                     TextField("例：牛乳を買う", text: $editableTask)
                         .font(.system(size: 22))
                         .textFieldStyle(.roundedBorder)
-                        .disabled(phase == .searching)
                 }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: 16))
+                        .foregroundStyle(.red)
+                }
+
+                Button(action: confirmContents) {
+                    Text("決定")
+                        .font(.system(size: 24, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color("BrandAccent"))
+                .disabled(editableTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.top, 8)
+
+                Text("用事は必須です。場所が空でも、次の画面で地図から指定できます。")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+        }
+    }
+
+    private var placeMethodContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text(Self.buildTag)
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+
+                Text("場所の決め方")
+                    .font(.system(size: 28, weight: .bold))
+
+                labeled("場所", editablePlace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? "（未入力・次で指定）"
+                        : editablePlace)
+                labeled("用事", editableTask)
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -142,23 +191,33 @@ struct PlaceResolveView: View {
                     Button(action: startSearch) {
                         Text(editablePlace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                              ? "地図から場所を指定"
-                             : "場所を検索して進む")
+                             : "場所を検索")
                             .font(.system(size: 20, weight: .semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Color("BrandAccent"))
-                    .disabled(editableTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     if !editablePlace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button("検索せず地図から指定") {
+                        Button("地図から指定") {
                             phase = .map
                         }
                         .font(.system(size: 17))
                         .frame(maxWidth: .infinity)
                         .padding(.top, 4)
                     }
+
+                    Button {
+                        phase = .review
+                        errorMessage = nil
+                    } label: {
+                        Text("内容をやり直す")
+                            .font(.system(size: 20, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
             .padding(24)
@@ -194,7 +253,7 @@ struct PlaceResolveView: View {
                     if candidates.count > 1 {
                         phase = .candidates
                     } else {
-                        phase = .map
+                        phase = .placeMethod
                     }
                 }
                 .font(.system(size: 17))
@@ -239,6 +298,16 @@ struct PlaceResolveView: View {
         }
     }
 
+    private func confirmContents() {
+        errorMessage = nil
+        let task = editableTask.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !task.isEmpty else {
+            errorMessage = "用事を入力してください。"
+            return
+        }
+        phase = .placeMethod
+    }
+
     private func startSearch() {
         errorMessage = nil
         let place = editablePlace.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -272,7 +341,7 @@ struct PlaceResolveView: View {
                     applySearchResults(savedOnly)
                 } else {
                     errorMessage = error.localizedDescription
-                    phase = .review
+                    phase = .placeMethod
                 }
             }
         }
