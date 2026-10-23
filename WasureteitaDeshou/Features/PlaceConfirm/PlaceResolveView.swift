@@ -243,25 +243,38 @@ struct PlaceResolveView: View {
         locationProvider.requestWhenInUseIfNeeded()
         Task {
             let near = await locationProvider.currentCoordinate()
+            let savedSnapshot = savedPlaceStore.places
             do {
                 let results = try await search.search(
                     query: place,
                     near: near,
-                    savedPlaces: savedPlaceStore.places
+                    savedPlaces: savedSnapshot
                 )
-                candidates = results
-                if results.isEmpty {
-                    phase = .map
-                } else if results.count == 1 {
-                    selected = results[0]
-                    phase = .confirm
-                } else {
-                    phase = .candidates
-                }
+                applySearchResults(results)
             } catch {
-                errorMessage = error.localizedDescription
-                phase = .review
+                let savedOnly = savedSnapshot
+                    .filter { $0.matchesQuery(place) }
+                    .sorted { $0.updatedAt > $1.updatedAt }
+                    .map { $0.asPlaceCandidate() }
+                if !savedOnly.isEmpty {
+                    applySearchResults(savedOnly)
+                } else {
+                    errorMessage = error.localizedDescription
+                    phase = .review
+                }
             }
+        }
+    }
+
+    private func applySearchResults(_ results: [PlaceCandidate]) {
+        candidates = results
+        if results.isEmpty {
+            phase = .map
+        } else if results.count == 1 {
+            selected = results[0]
+            phase = .confirm
+        } else {
+            phase = .candidates
         }
     }
 

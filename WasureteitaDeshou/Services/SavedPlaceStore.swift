@@ -41,15 +41,17 @@ final class SavedPlaceStore: ObservableObject {
             return SavedPlace(displayName: "場所", address: address, latitude: latitude, longitude: longitude)
         }
 
+        var next = places
         if !forceNewAlias,
-           let index = places.firstIndex(where: {
+           let index = next.firstIndex(where: {
                $0.distanceMeters(to: latitude, longitude: longitude) <= Self.proximityMeters
            }) {
-            places[index].displayName = name
-            places[index].address = address.trimmingCharacters(in: .whitespacesAndNewlines)
-            places[index].latitude = latitude
-            places[index].longitude = longitude
-            places[index].updatedAt = Date()
+            next[index].displayName = name
+            next[index].address = address.trimmingCharacters(in: .whitespacesAndNewlines)
+            next[index].latitude = latitude
+            next[index].longitude = longitude
+            next[index].updatedAt = Date()
+            places = next
             persist()
             return places[index]
         }
@@ -60,7 +62,8 @@ final class SavedPlaceStore: ObservableObject {
             latitude: latitude,
             longitude: longitude
         )
-        places.insert(place, at: 0)
+        next.insert(place, at: 0)
+        places = next
         persist()
         return place
     }
@@ -69,8 +72,10 @@ final class SavedPlaceStore: ObservableObject {
         guard let index = places.firstIndex(where: { $0.id == id }) else { return }
         let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        places[index].displayName = name
-        places[index].updatedAt = Date()
+        var next = places
+        next[index].displayName = name
+        next[index].updatedAt = Date()
+        places = next
         persist()
     }
 

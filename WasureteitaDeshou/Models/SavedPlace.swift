@@ -47,14 +47,22 @@ struct SavedPlace: Codable, Equatable, Identifiable, Sendable {
         guard !q.isEmpty, !displayName.isEmpty else { return false }
         if displayName.localizedCaseInsensitiveContains(q) { return true }
         if q.localizedCaseInsensitiveContains(displayName) { return true }
-        // 「水江の製油所」を「水江」「製油所」で拾う
-        let tokens = q
+        // クエリ側・呼び名側の両方を「の／空白」でトークン化し、相互に部分一致
+        let queryTokens = Self.tokens(in: q)
+        if queryTokens.contains(where: { displayName.localizedCaseInsensitiveContains($0) }) {
+            return true
+        }
+        let nameTokens = Self.tokens(in: displayName)
+        return nameTokens.contains { q.localizedCaseInsensitiveContains($0) }
+    }
+
+    private static func tokens(in text: String) -> [String] {
+        text
             .replacingOccurrences(of: "　", with: " ")
             .replacingOccurrences(of: "の", with: " ")
             .split(separator: " ")
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.count >= 2 }
-        return tokens.contains { displayName.localizedCaseInsensitiveContains($0) }
     }
 
     func distanceMeters(to latitude: Double, longitude: Double) -> CLLocationDistance {

@@ -104,7 +104,7 @@ struct SimpleUtteranceConfirmView: View {
     private var reviewContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-icon-1")
+                Text("build: stage5-nickname-1")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -226,7 +226,7 @@ struct SimpleUtteranceConfirmView: View {
     private var registerConfirmContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-icon-1")
+                Text("build: stage5-nickname-1")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -267,7 +267,7 @@ struct SimpleUtteranceConfirmView: View {
 
     private var savedContent: some View {
         VStack(spacing: 24) {
-            Text("build: stage5-icon-1")
+            Text("build: stage5-nickname-1")
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
 
@@ -320,17 +320,28 @@ struct SimpleUtteranceConfirmView: View {
         locationProvider.requestWhenInUseIfNeeded()
         Task {
             let near = await locationProvider.currentCoordinate()
+            let savedSnapshot = savedPlaceStore.places
             do {
                 let results = try await search.searchPlaceCandidates(
                     placePhrase: place,
                     near: near,
-                    savedPlaces: savedPlaceStore.places
+                    savedPlaces: savedSnapshot
                 )
                 candidates = results
                 applySearchResults(results, placePhrase: place)
             } catch {
-                errorMessage = error.localizedDescription
-                phase = .review
+                // サービス側でも SavedPlace を返す想定だが、万一の通信エラー時は呼び名だけで続行
+                let savedOnly = savedSnapshot
+                    .filter { $0.matchesQuery(place) }
+                    .sorted { $0.updatedAt > $1.updatedAt }
+                    .map { $0.asPlaceCandidate() }
+                if !savedOnly.isEmpty {
+                    candidates = savedOnly
+                    applySearchResults(savedOnly, placePhrase: place)
+                } else {
+                    errorMessage = error.localizedDescription
+                    phase = .review
+                }
             }
         }
     }

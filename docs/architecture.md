@@ -71,7 +71,7 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 
 1. 予定確定時、場所を `SavedPlace` に upsert（約50m近傍なら名前更新）。表示名は確定時の `placeName`
 2. 自宅（`HomePlace`）は二重保存しない
-3. 店舗検索時、SavedPlace を名前部分一致で探し候補の **先頭** に載せる（MapKit が空でも SavedPlace だけで候補へ）
+3. 店舗検索時、SavedPlace を名前部分一致で探し候補の **先頭** に載せる（MapKit が空／失敗でも SavedPlace だけで候補へ。`stage5-nickname-1`）
 4. 設定「保存した場所」で呼び名の編集・削除
 
 ## 自宅（stage4-home-1）

@@ -40,7 +40,7 @@ final class PlaceSearchService {
     }
 
     /// 場所フレーズから複数クエリで検索し、候補をマージする。
-    /// `savedPlaces` の名前部分一致は MapKit より **先頭** に載せる（MapKit が空でも SavedPlace だけで返す）。
+    /// `savedPlaces` の名前部分一致は MapKit より **先頭** に載せる（MapKit が空／失敗でも SavedPlace だけで返す）。
     func searchPlaceCandidates(
         placePhrase: String,
         near userLocation: CLLocationCoordinate2D? = nil,
@@ -49,6 +49,7 @@ final class PlaceSearchService {
         let base = placePhrase.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !base.isEmpty else { throw PlaceSearchError.emptyQuery }
 
+        // MapKit より先に SavedPlace を確定。通信失敗時も呼び名だけで候補へ進める。
         let savedCandidates = savedPlaces
             .filter { $0.matchesQuery(base) }
             .sorted { $0.updatedAt > $1.updatedAt }
@@ -56,20 +57,34 @@ final class PlaceSearchService {
 
         let queries = queryVariants(for: base)
         var merged: [PlaceCandidate] = []
+        var mapkitError: Error?
         for q in queries {
-            let batch = try await searchOnce(query: q, near: userLocation, radiusMeters: 80_000)
-            merged.append(contentsOf: batch)
+            do {
+                let batch = try await searchOnce(query: q, near: userLocation, radiusMeters: 80_000)
+                merged.append(contentsOf: batch)
+            } catch {
+                mapkitError = error
+            }
         }
 
         var mapkitResult = deduplicated(merged)
 
         // チェーンで1件しか取れないときは、ブランド＋地域だけでもう一度広めに取る
         if mapkitResult.count <= 1, let brandQuery = broadenedChainQuery(for: base) {
-            let extra = try await searchOnce(query: brandQuery, near: userLocation, radiusMeters: 120_000)
-            mapkitResult = deduplicated(mapkitResult + extra)
+            do {
+                let extra = try await searchOnce(query: brandQuery, near: userLocation, radiusMeters: 120_000)
+                mapkitResult = deduplicated(mapkitResult + extra)
+            } catch {
+                mapkitError = error
+            }
         }
 
-        return mergeSavedFirst(saved: savedCandidates, mapkit: mapkitResult)
+        let combined = mergeSavedFirst(saved: savedCandidates, mapkit: mapkitResult)
+        // SavedPlace があれば MapKit 失敗でも返す。両方空で通信失敗のときだけエラー。
+        if combined.isEmpty, let mapkitError {
+            throw mapkitError
+        }
+        return combined
     }
 
     func search(
