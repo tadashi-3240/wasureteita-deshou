@@ -104,7 +104,7 @@ struct SimpleUtteranceConfirmView: View {
     private var reviewContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-speech-3")
+                Text("build: stage5-editmap-1")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -226,7 +226,7 @@ struct SimpleUtteranceConfirmView: View {
     private var registerConfirmContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-speech-3")
+                Text("build: stage5-editmap-1")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -267,7 +267,7 @@ struct SimpleUtteranceConfirmView: View {
 
     private var savedContent: some View {
         VStack(spacing: 24) {
-            Text("build: stage5-speech-3")
+            Text("build: stage5-editmap-1")
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
 

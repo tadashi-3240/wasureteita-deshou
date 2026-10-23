@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 /// 登録済み予定の一覧（簡易編集・削除・手動完了・通知距離）。手動完了は履歴へ。
@@ -85,15 +86,24 @@ private struct ReminderRow: View {
     }
 }
 
+/// 予定の編集。登録座標を地図で確認し、タップでピン移動＋逆ジオコードで住所を更新できる。
 private struct ReminderEditView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var placeName: String
+    @State private var address: String
     @State private var task: String
     @State private var notifyDistance: Int
+    @State private var coordinate: CLLocationCoordinate2D
+    @State private var cameraPosition: MapCameraPosition
+    @State private var isResolving = false
+    @State private var resolveError: String?
+
     let original: Reminder
     let onSave: (Reminder) -> Void
     let onComplete: () -> Void
     let onDelete: () -> Void
+
+    private let search = PlaceSearchService()
 
     init(
         reminder: Reminder,
@@ -103,8 +113,19 @@ private struct ReminderEditView: View {
     ) {
         original = reminder
         _placeName = State(initialValue: reminder.placeName)
+        _address = State(initialValue: reminder.address)
         _task = State(initialValue: reminder.task)
         _notifyDistance = State(initialValue: AppNotifySettings.clamp(reminder.notifyDistanceMeters))
+        let coord = CLLocationCoordinate2D(latitude: reminder.latitude, longitude: reminder.longitude)
+        _coordinate = State(initialValue: coord)
+        _cameraPosition = State(
+            initialValue: .region(
+                MKCoordinateRegion(
+                    center: coord,
+                    span: MKCoordinateSpan(latitudeDelta: 0.012, longitudeDelta: 0.012)
+                )
+            )
+        )
         self.onSave = onSave
         self.onComplete = onComplete
         self.onDelete = onDelete
@@ -120,6 +141,44 @@ private struct ReminderEditView: View {
                 Section("場所名") {
                     TextField("場所名", text: $placeName)
                         .font(.system(size: 20))
+                }
+                Section {
+                    editMap
+                        .frame(height: 280)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(placeName.isEmpty ? "（場所名なし）" : placeName)
+                            .font(.system(size: 18, weight: .semibold))
+                        if !address.isEmpty {
+                            Text(address)
+                                .font(.system(size: 16))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("住所はまだありません")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.tertiary)
+                        }
+                        if isResolving {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("住所を調べています…")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        if let resolveError {
+                            Text(resolveError)
+                                .font(.system(size: 15))
+                                .foregroundStyle(.red)
+                        }
+                        Text("地図をタップするとピンを動かせます。住所は自動で更新されます（場所名はそのまま）。")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("地図で確認")
                 }
                 Section {
                     Picker("通知距離", selection: $notifyDistance) {
@@ -159,6 +218,9 @@ private struct ReminderEditView: View {
                         updated.placeName = placeName.trimmingCharacters(in: .whitespacesAndNewlines)
                         updated.task = task.trimmingCharacters(in: .whitespacesAndNewlines)
                         updated.notifyDistanceMeters = notifyDistance
+                        updated.latitude = coordinate.latitude
+                        updated.longitude = coordinate.longitude
+                        updated.address = address.trimmingCharacters(in: .whitespacesAndNewlines)
                         onSave(updated)
                         dismiss()
                     }
@@ -166,11 +228,65 @@ private struct ReminderEditView: View {
                     .disabled(
                         placeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             || task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || isResolving
                     )
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large, .medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var editMap: some View {
+        MapReader { proxy in
+            Map(position: $cameraPosition) {
+                Annotation(placeName.isEmpty ? "場所" : placeName, coordinate: coordinate) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.system(size: 36))
+                            .foregroundStyle(Color("BrandAccent"))
+                            .shadow(radius: 2, y: 1)
+                        if !placeName.isEmpty {
+                            Text(placeName)
+                                .font(.system(size: 13, weight: .semibold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+            .mapControls {
+                MapCompass()
+                MapScaleView()
+            }
+            .gesture(
+                SpatialTapGesture()
+                    .onEnded { event in
+                        if let newCoordinate = proxy.convert(event.location, from: .local) {
+                            movePin(to: newCoordinate)
+                        }
+                    }
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
+    }
+
+    private func movePin(to newCoordinate: CLLocationCoordinate2D) {
+        coordinate = newCoordinate
+        resolveError = nil
+        isResolving = true
+        Task {
+            let candidate = await search.reverseGeocode(coordinate: newCoordinate)
+            address = candidate.address
+            isResolving = false
+            if candidate.address.isEmpty {
+                resolveError = "住所を取得できませんでした。座標は更新されています。"
+            }
+        }
     }
 }
 

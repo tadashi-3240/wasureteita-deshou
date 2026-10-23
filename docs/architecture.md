@@ -12,7 +12,7 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 | モジュール | 責務 | 段階 |
 |---|---|---|
 | **Features/Registration** | テキスト入力 → 内容確認 → 店舗検索／自宅 | 1〜2+自宅 |
-| **Features/Schedule** | 予定一覧・編集・削除・手動完了（履歴へ） | 2〜4 |
+| **Features/Schedule** | 予定一覧・編集（地図確認／ピン移動）・削除・手動完了（履歴へ） | 2〜5 |
 | **Features/History** | 履歴表示・ワンタップ再登録 | 4 |
 | **Features/Settings** | 通知距離・権限・自宅・保存した場所・**読み上げ**・距離／滞在非保証 | 3〜5 |
 | **Services/PlaceSearch** | MapKit 検索＋SavedPlace を候補先頭へ | 2+places |
@@ -44,7 +44,14 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 7. **バックグラウンド／ロック画面**: iOS 制約で自由文 TTS は保証できない。`UIBackgroundModes=audio` 迂回はしない。**通知音＋文字が基本**
 8. 使える声は **iOS／端末依存**。クラウド TTS・独自音声ファイル大量同梱はしない
 9. `japaneseVoices()` は声カタログ参照のみのため `nonisolated`（`SpeechVoiceStyle.availableStyles` から Swift 6 厳密 concurrency で呼べる）
-10. ビルド識別: `build: stage5-speech-3`
+
+## 予定編集の地図確認（stage5-editmap-1）
+
+1. `ScheduleListView` の編集シートで登録座標を SwiftUI `Map`＋`Annotation` 表示
+2. 場所名・住所を地図直下に短く表示
+3. 地図タップでピン移動 → `PlaceSearchService.reverseGeocode` で住所更新（場所名はユーザー編集を維持）
+4. 保存時に latitude／longitude／address も反映（`ReminderStore.update` → 位置監視再同期）
+5. ビルド識別: `build: stage5-editmap-1`
 
 ## 接近通知の重複抑止（stage4-dedupe-1）
 
