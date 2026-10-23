@@ -60,12 +60,14 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 3. 角丸はシステム任せ（フルブリード正方形）
 4. ビルド識別: `build: stage5-icon-1`
 
-## 内容確認の決定（stage5-decide-1）
+## 内容確認の決定（stage5-decide-1 / stage5-nickname-2）
 
 1. 内容確認フェーズは場所／用事の編集と大きな **「決定」** のみ（用事必須）
-2. 決定後に **場所の決め方**: 店舗を検索／自宅を使う／地図から指定
-3. `SimpleUtteranceConfirmView` と `PlaceResolveView` で同じ二段構成
-4. ビルド識別: `build: stage5-decide-1`
+2. 決定時、場所欄を `SavedPlaceStore.resolveForDecide` で照合（完全一致 → 明確な部分一致 → トークン一致）
+3. **一意マッチ** → その座標・名前で登録確認へ直行。**複数** → SavedPlace 候補一覧（地図強制なし）
+4. マッチなしのときだけ **場所の決め方**: 店舗を検索／自宅を使う／地図から指定
+5. `SimpleUtteranceConfirmView` と `PlaceResolveView` で同じ流れ
+6. ビルド識別: `build: stage5-nickname-2`
 
 ## 接近通知の重複抑止（stage4-dedupe-1）
 
@@ -79,7 +81,8 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 1. 予定確定時、場所を `SavedPlace` に upsert（約50m近傍なら名前更新）。表示名は確定時の `placeName`
 2. 自宅（`HomePlace`）は二重保存しない
 3. 店舗検索時、SavedPlace を名前部分一致で探し候補の **先頭** に載せる（MapKit が空／失敗でも SavedPlace だけで候補へ。`stage5-nickname-1`）
-4. 設定「保存した場所」で呼び名の編集・削除
+4. 内容確認の **決定** でも同じ SavedPlace を優先（一意なら確認直行。`stage5-nickname-2`）
+5. 設定「保存した場所」で呼び名の編集・削除
 
 ## 場所／用事の分割（stage5-parse-1）
 

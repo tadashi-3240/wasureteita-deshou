@@ -1,6 +1,13 @@
 import Foundation
 import Combine
 
+/// 内容確認の「決定」で場所欄を SavedPlace に当てた結果。
+enum SavedPlaceDecideResolve: Equatable {
+    case none
+    case unique(SavedPlace)
+    case multiple([SavedPlace])
+}
+
 /// 登録済み場所の呼び名。UserDefaults。クラウド同期なし。自宅は含めない。
 @MainActor
 final class SavedPlaceStore: ObservableObject {
@@ -24,6 +31,29 @@ final class SavedPlaceStore: ObservableObject {
         return places
             .filter { $0.matchesQuery(q) }
             .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    /// 決定時: 完全一致 → 明確な部分一致 → トークン一致。一意なら座標確定、複数なら候補。
+    func resolveForDecide(query: String) -> SavedPlaceDecideResolve {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return .none }
+
+        let exact = places
+            .filter { $0.displayName.localizedCaseInsensitiveCompare(q) == .orderedSame }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        if exact.count == 1 { return .unique(exact[0]) }
+        if exact.count > 1 { return .multiple(exact) }
+
+        let clear = places
+            .filter { $0.isClearPartialMatch(for: q) }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        if clear.count == 1 { return .unique(clear[0]) }
+        if clear.count > 1 { return .multiple(clear) }
+
+        let fuzzy = matches(query: q)
+        if fuzzy.count == 1 { return .unique(fuzzy[0]) }
+        if fuzzy.count > 1 { return .multiple(fuzzy) }
+        return .none
     }
 
     /// 予定確定時の upsert。近傍なら displayName を更新。別名を別エントリで残す場合は `forceNewAlias`。

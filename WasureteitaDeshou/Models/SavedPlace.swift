@@ -56,6 +56,16 @@ struct SavedPlace: Codable, Equatable, Identifiable, Sendable {
         return nameTokens.contains { q.localizedCaseInsensitiveContains($0) }
     }
 
+    /// 決定時の「明確な部分一致」: 完全一致、または片方が他方を含む（2文字以上）。
+    func isClearPartialMatch(for query: String) -> Bool {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty, !displayName.isEmpty else { return false }
+        if displayName.localizedCaseInsensitiveCompare(q) == .orderedSame { return true }
+        guard min(displayName.count, q.count) >= 2 else { return false }
+        return displayName.localizedCaseInsensitiveContains(q)
+            || q.localizedCaseInsensitiveContains(displayName)
+    }
+
     private static func tokens(in text: String) -> [String] {
         text
             .replacingOccurrences(of: "　", with: " ")

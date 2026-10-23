@@ -16,8 +16,9 @@
 - **App Icon**: ユーザー提供アイコンを Single Size 1024 で設定（`stage5-icon-1`）
 - **場所／用事パース**: SavedPlace 呼び名と自宅・コネクタで内容確認の初期値を分割（`stage5-parse-1`）
 - **内容確認の決定**: 場所／用事確認後に大きな「決定」→ 店舗検索／自宅／地図の選択へ（`stage5-decide-1`）
+- **呼び名で決定**: 場所欄が SavedPlace の呼び名（完全一致／明確な部分一致）なら決定後に座標確定。一意なら登録確認へ直行（`stage5-nickname-2`）
 
-ビルド識別: **`build: stage5-decide-1`**
+ビルド識別: **`build: stage5-nickname-2`**
 
 ## 未実装／保証外
 
@@ -39,7 +40,7 @@ python3 scripts/generate_piroriron_sound.py   # ffmpeg が必要
 
 ## 実機テスト（読み上げ / speech-2）
 
-1. 設定で `build: stage5-decide-1` を確認
+1. 設定で `build: stage5-nickname-2` を確認
 2. 「接近時に読み上げる」がオン（既定）であること
 3. 「声の種類」が「明るい若い声」（既定）であること。標準／低めに切り替えて「読み上げテスト」で差が分かること
 4. 「いま使う声」に端末の声名が出ること（無い声はフォールバック）

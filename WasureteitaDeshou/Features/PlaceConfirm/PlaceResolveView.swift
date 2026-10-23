@@ -23,7 +23,7 @@ struct PlaceResolveView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-decide-1"
+    private static let buildTag = "build: stage5-nickname-2"
 
     enum Phase: Equatable {
         case review
@@ -298,12 +298,31 @@ struct PlaceResolveView: View {
         }
     }
 
+    /// 場所欄が SavedPlace に一意マッチなら確認へ直行。複数なら候補。それ以外は場所の決め方。
     private func confirmContents() {
         errorMessage = nil
         let task = editableTask.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !task.isEmpty else {
             errorMessage = "用事を入力してください。"
             return
+        }
+        let place = editablePlace.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !place.isEmpty {
+            switch savedPlaceStore.resolveForDecide(query: place) {
+            case .unique(let saved):
+                let candidate = saved.asPlaceCandidate()
+                selected = candidate
+                candidates = [candidate]
+                phase = .confirm
+                return
+            case .multiple(let savedList):
+                candidates = savedList.map { $0.asPlaceCandidate() }
+                selected = nil
+                phase = .candidates
+                return
+            case .none:
+                break
+            }
         }
         phase = .placeMethod
     }
