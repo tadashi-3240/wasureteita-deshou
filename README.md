@@ -24,21 +24,9 @@
 - バックグラウンド・ロック画面での自由文読み上げ（iOS 制約。審査リスクの高い audio バックグラウンド迂回はしない）
 - クラウド TTS／独自音声ファイル大量同梱／クラウド同期／ログイン
 
-## Mac で開く
+## Mac で開く（取り込み方）
 
-Mac では `更新してXcodeを開く.command` をダブルクリック（初回は右クリック→開く）。
-
-pbxproj にローカル署名があると `git pull` がコケやすいので、作業前は remote に合わせるのを推奨（上記 .command が同じことをします）:
-
-```bash
-cd /path/to/ima-ikura-tanonda
-git fetch
-git checkout cursor/wasureteita-stage1-aaa9
-git reset --hard origin/cursor/wasureteita-stage1-aaa9
-git log -1 --oneline
-cd WasureteitaDeshou
-open WasureteitaDeshou.xcodeproj
-```
+`update-and-open-xcode.command` をダブルクリック（Terminal 不要。初回は右クリック→開く）。`git pull --ff-only` のあと Xcode が開きます。日本語名の `更新してXcodeを開く.command` も同じです。
 
 Signing で Team を選び、実機（iOS 18+）で Run。
 
