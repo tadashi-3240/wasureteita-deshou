@@ -36,14 +36,14 @@ struct PlaceCandidateListView: View {
                 Text("候補から選ぶ")
                     .font(.system(size: 16, weight: .semibold))
             } footer: {
-                Text("違う場所のときは地図から指定できます。")
+                Text("違う場所のときは地図で登録できます。")
                     .font(.system(size: 15))
             }
 
             Section {
                 Button(action: onPickOnMap) {
-                    Label("地図から指定する", systemImage: "map")
-                        .font(.system(size: 18, weight: .medium))
+                    Label("地図で場所を登録", systemImage: "map")
+                        .font(.system(size: 20, weight: .semibold))
                 }
             }
         }

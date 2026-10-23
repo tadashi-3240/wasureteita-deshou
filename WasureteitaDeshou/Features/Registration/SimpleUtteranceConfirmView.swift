@@ -31,7 +31,7 @@ struct SimpleUtteranceConfirmView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-decide-2"
+    private static let buildTag = "build: stage5-mapnick-1"
     private static let homePlaceLabels: Set<String> = ["自宅", "うち", "家"]
 
     private enum Phase: Equatable {
@@ -73,7 +73,10 @@ struct SimpleUtteranceConfirmView: View {
             case .map:
                 MapPlacePickerView(
                     initialCoordinate: locationProvider.coordinate,
+                    suggestedNickname: placeText,
+                    requiresNickname: true,
                     onConfirm: { candidate in
+                        placeText = candidate.name
                         finishWithPlace(candidate)
                     }
                 )
@@ -115,7 +118,7 @@ struct SimpleUtteranceConfirmView: View {
         case .review: return "内容の確認"
         case .placeMethod, .searching: return "場所の決め方"
         case .candidates: return "場所の候補"
-        case .map: return "地図から指定"
+        case .map: return "地図で場所を登録"
         case .saved: return "登録完了"
         }
     }
@@ -242,15 +245,18 @@ struct SimpleUtteranceConfirmView: View {
                     }
                     .padding(.top, 8)
                 } else {
-                    Button(action: startSearch) {
-                        Text("店舗を検索")
-                            .font(.system(size: 20, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
+                    let placeEmpty = placeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+                    if !placeEmpty {
+                        Button(action: startSearch) {
+                            Text("店舗を検索")
+                                .font(.system(size: 20, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color("BrandAccent"))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color("BrandAccent"))
-                    .disabled(placeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button {
                         Task { await useHomePlace() }
@@ -273,11 +279,22 @@ struct SimpleUtteranceConfirmView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Button("地図から指定") {
+                    Button {
                         phase = .map
+                    } label: {
+                        Text("地図で場所を登録")
+                            .font(.system(size: placeEmpty ? 22 : 20, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, placeEmpty ? 20 : 16)
                     }
-                    .font(.system(size: 17))
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color("BrandAccent"))
+
+                    Text(placeEmpty
+                         ? "場所の呼び名がわからないときは、地図でピンを置き、呼び名をつけて登録します。"
+                         : "検索で見つからないときは、地図でピンと呼び名を登録できます。")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
 
                     Button {
                         phase = .review

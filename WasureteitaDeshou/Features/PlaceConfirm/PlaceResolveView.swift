@@ -24,7 +24,7 @@ struct PlaceResolveView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-decide-2"
+    private static let buildTag = "build: stage5-mapnick-1"
 
     enum Phase: Equatable {
         case review
@@ -64,7 +64,10 @@ struct PlaceResolveView: View {
             case .map:
                 MapPlacePickerView(
                     initialCoordinate: locationProvider.coordinate,
+                    suggestedNickname: editablePlace,
+                    requiresNickname: true,
                     onConfirm: { candidate in
+                        editablePlace = candidate.name
                         finishWithPlace(candidate)
                     }
                 )
@@ -90,7 +93,7 @@ struct PlaceResolveView: View {
         case .review: return "内容の確認"
         case .placeMethod, .searching: return "場所の決め方"
         case .candidates: return "場所の候補"
-        case .map: return "地図から指定"
+        case .map: return "地図で場所を登録"
         case .saved: return "登録完了"
         }
     }
@@ -183,24 +186,48 @@ struct PlaceResolveView: View {
                     }
                     .padding(.top, 8)
                 } else {
-                    Button(action: startSearch) {
-                        Text(editablePlace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                             ? "地図から場所を指定"
-                             : "場所を検索")
-                            .font(.system(size: 20, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color("BrandAccent"))
+                    let placeEmpty = editablePlace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-                    if !editablePlace.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button("地図から指定") {
+                    if placeEmpty {
+                        Button {
                             phase = .map
+                        } label: {
+                            Text("地図で場所を登録")
+                                .font(.system(size: 22, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 20)
                         }
-                        .font(.system(size: 17))
-                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color("BrandAccent"))
+
+                        Text("場所の呼び名がわからないときは、地図でピンを置き、呼び名をつけて登録します。")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button(action: startSearch) {
+                            Text("場所を検索")
+                                .font(.system(size: 20, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color("BrandAccent"))
+
+                        Button {
+                            phase = .map
+                        } label: {
+                            Text("地図で場所を登録")
+                                .font(.system(size: 20, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color("BrandAccent"))
                         .padding(.top, 4)
+
+                        Text("検索で見つからないときは、地図でピンと呼び名を登録できます。")
+                            .font(.system(size: 15))
+                            .foregroundStyle(.secondary)
                     }
 
                     Button {
