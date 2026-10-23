@@ -1,7 +1,8 @@
 import CoreLocation
 import SwiftUI
 
-/// 内容確認 → 決定 → 場所の決め方（店舗検索／自宅／地図）→ 候補／地図 → 予定保存。
+/// 内容確認 → 決定 →（必要なら場所の決め方／候補／地図）→ 場所が決まったら即保存 → 完了。
+/// 「予定に登録する」確認は出さない。距離は設定デフォルト。修正は予定一覧から。
 struct SimpleUtteranceConfirmView: View {
     let rawText: String
     let knownPlaceNames: [String]
@@ -30,7 +31,8 @@ struct SimpleUtteranceConfirmView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-nickname-2"
+    private static let buildTag = "build: stage5-decide-2"
+    private static let homePlaceLabels: Set<String> = ["自宅", "うち", "家"]
 
     private enum Phase: Equatable {
         case review
@@ -38,7 +40,6 @@ struct SimpleUtteranceConfirmView: View {
         case searching
         case candidates
         case map
-        case confirm
         case saved
     }
 
@@ -63,8 +64,7 @@ struct SimpleUtteranceConfirmView: View {
                 PlaceCandidateListView(
                     candidates: candidates,
                     onSelect: { candidate in
-                        selected = candidate
-                        phase = .confirm
+                        finishWithPlace(candidate)
                     },
                     onPickOnMap: {
                         phase = .map
@@ -74,12 +74,9 @@ struct SimpleUtteranceConfirmView: View {
                 MapPlacePickerView(
                     initialCoordinate: locationProvider.coordinate,
                     onConfirm: { candidate in
-                        selected = candidate
-                        phase = .confirm
+                        finishWithPlace(candidate)
                     }
                 )
-            case .confirm:
-                registerConfirmContent
             case .saved:
                 savedContent
             }
@@ -119,7 +116,6 @@ struct SimpleUtteranceConfirmView: View {
         case .placeMethod, .searching: return "場所の決め方"
         case .candidates: return "場所の候補"
         case .map: return "地図から指定"
-        case .confirm: return "登録の確認"
         case .saved: return "登録完了"
         }
     }
@@ -135,7 +131,7 @@ struct SimpleUtteranceConfirmView: View {
                 Text("内容の確認")
                     .font(.system(size: 28, weight: .bold))
 
-                Text("場所と用事を確認し、「決定」で次に進みます。")
+                Text("場所と用事を確認し、「決定」で登録します。通知距離は設定のデフォルトです（あとから予定一覧で変えられます）。")
                     .font(.system(size: 17))
                     .foregroundStyle(.secondary)
 
@@ -165,7 +161,7 @@ struct SimpleUtteranceConfirmView: View {
                 }
 
                 if suggestsHome {
-                    Text("「自宅」「帰ったら」などの言い回しです。決定のあと「自宅を使う」が向いています。")
+                    Text("「自宅」「帰ったら」などの言い回しです。自宅が設定済みなら決定でそのまま登録します。")
                         .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                 }
@@ -187,7 +183,7 @@ struct SimpleUtteranceConfirmView: View {
                 .disabled(taskText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .padding(.top, 8)
 
-                Text("用事は必須です。場所が空でも、次の画面で自宅や地図から指定できます。")
+                Text("用事は必須です。場所がまだ決まらないときだけ、次の画面で店舗・自宅・地図から指定します。")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
 
@@ -220,7 +216,7 @@ struct SimpleUtteranceConfirmView: View {
                 labeled("用事", taskText)
 
                 if suggestsHome {
-                    Text("「自宅」「帰ったら」などの言い回しなので、「自宅を使う」が向いています。")
+                    Text("「自宅」「帰ったら」などの言い回しなので、「自宅を使う」が向いています。選ぶとそのまま登録します。")
                         .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                 }
@@ -300,48 +296,6 @@ struct SimpleUtteranceConfirmView: View {
         }
     }
 
-    private var registerConfirmContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text(Self.buildTag)
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-
-                if let selected {
-                    labeled("場所", selected.name)
-                    if !selected.address.isEmpty {
-                        labeled("住所", selected.address)
-                    }
-                }
-                labeled("用事", taskText)
-                labeled("通知距離", "\(notifySettings.defaultNotifyDistanceMeters) m（設定で変更可）")
-
-                Text("登録すると、この距離の目安で近づいたときに通知します（正確な距離は保証しません）。")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
-
-                Button(action: saveReminder) {
-                    Text("予定に登録する")
-                        .font(.system(size: 20, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("BrandAccent"))
-                .disabled(selected == nil)
-
-                Button("場所を選び直す") {
-                    selected = nil
-                    phase = .placeMethod
-                }
-                .font(.system(size: 17))
-                .frame(maxWidth: .infinity)
-            }
-            .padding(24)
-        }
-    }
-
     private var savedContent: some View {
         VStack(spacing: 24) {
             Text(Self.buildTag)
@@ -381,7 +335,7 @@ struct SimpleUtteranceConfirmView: View {
         }
     }
 
-    /// 内容確認済み。場所欄が SavedPlace に一意マッチなら確認へ直行。複数なら候補。それ以外は場所の決め方。
+    /// 決定＝登録。SavedPlace 一意／自宅確定なら即保存。それ以外は場所の決め方へ。
     private func confirmContents() {
         errorMessage = nil
         homeHintMessage = nil
@@ -391,13 +345,19 @@ struct SimpleUtteranceConfirmView: View {
             return
         }
         let place = placeText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if shouldUseConfiguredHome(place: place), let home = homeStore.home {
+            placeText = home.name
+            finishWithPlace(home.asPlaceCandidate())
+            return
+        }
+
         if !place.isEmpty {
             switch savedPlaceStore.resolveForDecide(query: place) {
             case .unique(let saved):
                 let candidate = saved.asPlaceCandidate()
-                selected = candidate
                 candidates = [candidate]
-                phase = .confirm
+                finishWithPlace(candidate)
                 return
             case .multiple(let savedList):
                 candidates = savedList.map { $0.asPlaceCandidate() }
@@ -409,6 +369,12 @@ struct SimpleUtteranceConfirmView: View {
             }
         }
         phase = .placeMethod
+    }
+
+    private func shouldUseConfiguredHome(place: String) -> Bool {
+        guard homeStore.isConfigured else { return false }
+        if suggestsHome { return true }
+        return Self.homePlaceLabels.contains(place)
     }
 
     private func startSearch() {
@@ -454,7 +420,7 @@ struct SimpleUtteranceConfirmView: View {
     }
 
     /// 2件以上 → 必ず一覧。チェーンは1件でも一覧（勝手に確定しない）。
-    /// SavedPlace のみ1件／非チェーンの MapKit 1件 → 確認へ。SavedPlace が空でも MapKit 空なら地図へ。
+    /// SavedPlace のみ1件／非チェーンの MapKit 1件 → 即保存。空なら地図へ。
     private func applySearchResults(_ results: [PlaceCandidate], placePhrase: String) {
         if results.isEmpty {
             phase = .map
@@ -463,8 +429,7 @@ struct SimpleUtteranceConfirmView: View {
         let onlySaved = results.count == 1 && results[0].id.hasPrefix("saved|")
         let isChain = PlaceSearchService.isLikelyChain(placePhrase)
         if results.count == 1 && (onlySaved || !isChain) {
-            selected = results[0]
-            phase = .confirm
+            finishWithPlace(results[0])
             return
         }
         candidates = results
@@ -479,12 +444,11 @@ struct SimpleUtteranceConfirmView: View {
 
         if let home = homeStore.home {
             placeText = home.name
-            selected = home.asPlaceCandidate()
-            phase = .confirm
+            finishWithPlace(home.asPlaceCandidate())
             return
         }
 
-        // 未設定 → その場でいまの位置を自宅にし、続けて登録確認へ
+        // 未設定 → その場でいまの位置を自宅にし、続けて即保存
         isResolvingHome = true
         defer { isResolvingHome = false }
 
@@ -503,9 +467,14 @@ struct SimpleUtteranceConfirmView: View {
         )
         homeStore.save(home)
         placeText = home.name
-        selected = home.asPlaceCandidate()
         homeHintMessage = nil
-        phase = .confirm
+        finishWithPlace(home.asPlaceCandidate())
+    }
+
+    /// 場所が決まったらすぐ保存（登録確認は出さない）。
+    private func finishWithPlace(_ candidate: PlaceCandidate) {
+        selected = candidate
+        saveReminder()
     }
 
     private func saveReminder() {

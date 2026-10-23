@@ -1,7 +1,7 @@
 import CoreLocation
 import SwiftUI
 
-/// 「次へ」のあと: 内容確認 → 決定 → 場所の決め方 → MapKit 検索 → 一意／候補／地図。
+/// 「次へ」のあと: 内容確認 → 決定 →（必要なら場所の決め方／候補／地図）→ 場所が決まったら即保存 → 完了。
 struct PlaceResolveView: View {
     let rawText: String
     let knownPlaceNames: [String]
@@ -11,6 +11,7 @@ struct PlaceResolveView: View {
     @EnvironmentObject private var draftStore: DraftUtteranceStore
     @EnvironmentObject private var homeStore: HomePlaceStore
     @EnvironmentObject private var savedPlaceStore: SavedPlaceStore
+    @EnvironmentObject private var notifySettings: AppNotifySettings
 
     @StateObject private var locationProvider = UserLocationProvider()
 
@@ -23,7 +24,7 @@ struct PlaceResolveView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-nickname-2"
+    private static let buildTag = "build: stage5-decide-2"
 
     enum Phase: Equatable {
         case review
@@ -31,7 +32,6 @@ struct PlaceResolveView: View {
         case searching
         case candidates
         case map
-        case confirm
         case saved
     }
 
@@ -55,8 +55,7 @@ struct PlaceResolveView: View {
                 PlaceCandidateListView(
                     candidates: candidates,
                     onSelect: { candidate in
-                        selected = candidate
-                        phase = .confirm
+                        finishWithPlace(candidate)
                     },
                     onPickOnMap: {
                         phase = .map
@@ -66,12 +65,9 @@ struct PlaceResolveView: View {
                 MapPlacePickerView(
                     initialCoordinate: locationProvider.coordinate,
                     onConfirm: { candidate in
-                        selected = candidate
-                        phase = .confirm
+                        finishWithPlace(candidate)
                     }
                 )
-            case .confirm:
-                confirmContent
             case .saved:
                 savedContent
             }
@@ -95,7 +91,6 @@ struct PlaceResolveView: View {
         case .placeMethod, .searching: return "場所の決め方"
         case .candidates: return "場所の候補"
         case .map: return "地図から指定"
-        case .confirm: return "登録の確認"
         case .saved: return "登録完了"
         }
     }
@@ -149,7 +144,7 @@ struct PlaceResolveView: View {
                 .disabled(editableTask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .padding(.top, 8)
 
-                Text("用事は必須です。場所が空でも、次の画面で地図から指定できます。")
+                Text("用事は必須です。「決定」で場所が決まればそのまま登録します。距離は設定のデフォルト（予定一覧で変更可）。")
                     .font(.system(size: 15))
                     .foregroundStyle(.secondary)
             }
@@ -224,45 +219,6 @@ struct PlaceResolveView: View {
         }
     }
 
-    private var confirmContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let selected {
-                    labeled("場所", selected.name)
-                    if !selected.address.isEmpty {
-                        labeled("住所", selected.address)
-                    }
-                }
-                labeled("用事", editableTask)
-
-                Text("近づいたときの通知は第3段階で追加します。今は予定として端末内に保存します。")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
-
-                Button(action: saveReminder) {
-                    Text("予定に登録する")
-                        .font(.system(size: 20, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("BrandAccent"))
-                .disabled(selected == nil)
-
-                Button("場所を選び直す") {
-                    if candidates.count > 1 {
-                        phase = .candidates
-                    } else {
-                        phase = .placeMethod
-                    }
-                }
-                .font(.system(size: 17))
-                .frame(maxWidth: .infinity)
-            }
-            .padding(24)
-        }
-    }
-
     private var savedContent: some View {
         VStack(spacing: 24) {
             Image(systemName: "checkmark.circle.fill")
@@ -298,7 +254,7 @@ struct PlaceResolveView: View {
         }
     }
 
-    /// 場所欄が SavedPlace に一意マッチなら確認へ直行。複数なら候補。それ以外は場所の決め方。
+    /// 場所欄が SavedPlace に一意マッチなら即保存。複数なら候補。それ以外は場所の決め方。
     private func confirmContents() {
         errorMessage = nil
         let task = editableTask.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -311,9 +267,8 @@ struct PlaceResolveView: View {
             switch savedPlaceStore.resolveForDecide(query: place) {
             case .unique(let saved):
                 let candidate = saved.asPlaceCandidate()
-                selected = candidate
                 candidates = [candidate]
-                phase = .confirm
+                finishWithPlace(candidate)
                 return
             case .multiple(let savedList):
                 candidates = savedList.map { $0.asPlaceCandidate() }
@@ -371,11 +326,15 @@ struct PlaceResolveView: View {
         if results.isEmpty {
             phase = .map
         } else if results.count == 1 {
-            selected = results[0]
-            phase = .confirm
+            finishWithPlace(results[0])
         } else {
             phase = .candidates
         }
+    }
+
+    private func finishWithPlace(_ candidate: PlaceCandidate) {
+        selected = candidate
+        saveReminder()
     }
 
     private func saveReminder() {
@@ -386,7 +345,8 @@ struct PlaceResolveView: View {
             task: editableTask.trimmingCharacters(in: .whitespacesAndNewlines),
             latitude: selected.latitude,
             longitude: selected.longitude,
-            rawUtterance: rawText
+            rawUtterance: rawText,
+            notifyDistanceMeters: notifySettings.defaultNotifyDistanceMeters
         )
         reminderStore.add(reminder)
         rememberPlaceIfNeeded(selected)
