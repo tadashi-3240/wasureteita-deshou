@@ -1,0 +1,474 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* WasureteitaDeshouApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* WasureteitaDeshouApp.swift */; };
+		A10000000000000000000002 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* RootTabView.swift */; };
+		A10000000000000000000003 /* RegistrationInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* RegistrationInputView.swift */; };
+		A10000000000000000000005 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000005 /* SettingsView.swift */; };
+		A10000000000000000000006 /* ScheduleListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* ScheduleListView.swift */; };
+		A10000000000000000000007 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* HistoryView.swift */; };
+		A1000000000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* Assets.xcassets */; };
+		A1000000000000000000000C /* DraftUtteranceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* DraftUtteranceStore.swift */; };
+		A1000000000000000000000D /* ParsedUtterance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* ParsedUtterance.swift */; };
+		A1000000000000000000000E /* PlaceCandidate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* PlaceCandidate.swift */; };
+		A1000000000000000000000F /* Reminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* Reminder.swift */; };
+		A10000000000000000000010 /* UtteranceParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* UtteranceParser.swift */; };
+		A10000000000000000000011 /* PlaceSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* PlaceSearchService.swift */; };
+		A10000000000000000000012 /* ReminderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* ReminderStore.swift */; };
+		A10000000000000000000013 /* UserLocationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* UserLocationProvider.swift */; };
+		A10000000000000000000014 /* PlaceResolveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* PlaceResolveView.swift */; };
+		A10000000000000000000015 /* PlaceCandidateListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* PlaceCandidateListView.swift */; };
+		A10000000000000000000016 /* MapPlacePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* MapPlacePickerView.swift */; };
+		A10000000000000000000017 /* SimpleUtteranceConfirmView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* SimpleUtteranceConfirmView.swift */; };
+		A10000000000000000000018 /* AppNotifySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* AppNotifySettings.swift */; };
+		A10000000000000000000019 /* ReminderNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* ReminderNotifier.swift */; };
+		A1000000000000000000001A /* LocationMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001A /* LocationMonitor.swift */; };
+		A1000000000000000000001B /* LocationNotifyPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001B /* LocationNotifyPermissionView.swift */; };
+		A1000000000000000000001C /* piroriron.caf in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001C /* piroriron.caf */; };
+		A1000000000000000000001D /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001D /* AppDelegate.swift */; };
+		A1000000000000000000001E /* ReminderHistoryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001E /* ReminderHistoryItem.swift */; };
+		A1000000000000000000001F /* HomePlace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001F /* HomePlace.swift */; };
+		A10000000000000000000020 /* HomePlaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* HomePlaceStore.swift */; };
+		A10000000000000000000021 /* HomePlaceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* HomePlaceSettingsView.swift */; };
+		A10000000000000000000022 /* SavedPlace.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* SavedPlace.swift */; };
+		A10000000000000000000023 /* SavedPlaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* SavedPlaceStore.swift */; };
+		A10000000000000000000024 /* SavedPlacesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* SavedPlacesSettingsView.swift */; };
+		A10000000000000000000025 /* ApproachSpeechSynthesizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ApproachSpeechSynthesizer.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* WasureteitaDeshouApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WasureteitaDeshouApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* RegistrationInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegistrationInputView.swift; sourceTree = "<group>"; };
+		A20000000000000000000005 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000006 /* ScheduleListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleListView.swift; sourceTree = "<group>"; };
+		A20000000000000000000007 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		A2000000000000000000000A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A2000000000000000000000B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000000000000000000000C /* DraftUtteranceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraftUtteranceStore.swift; sourceTree = "<group>"; };
+		A2000000000000000000000D /* ParsedUtterance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedUtterance.swift; sourceTree = "<group>"; };
+		A2000000000000000000000E /* PlaceCandidate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceCandidate.swift; sourceTree = "<group>"; };
+		A2000000000000000000000F /* Reminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reminder.swift; sourceTree = "<group>"; };
+		A20000000000000000000010 /* UtteranceParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UtteranceParser.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* PlaceSearchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceSearchService.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* ReminderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000013 /* UserLocationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserLocationProvider.swift; sourceTree = "<group>"; };
+		A20000000000000000000014 /* PlaceResolveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceResolveView.swift; sourceTree = "<group>"; };
+		A20000000000000000000015 /* PlaceCandidateListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceCandidateListView.swift; sourceTree = "<group>"; };
+		A20000000000000000000016 /* MapPlacePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapPlacePickerView.swift; sourceTree = "<group>"; };
+		A20000000000000000000017 /* SimpleUtteranceConfirmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleUtteranceConfirmView.swift; sourceTree = "<group>"; };
+		A20000000000000000000018 /* AppNotifySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNotifySettings.swift; sourceTree = "<group>"; };
+		A20000000000000000000019 /* ReminderNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderNotifier.swift; sourceTree = "<group>"; };
+		A2000000000000000000001A /* LocationMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationMonitor.swift; sourceTree = "<group>"; };
+		A2000000000000000000001B /* LocationNotifyPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationNotifyPermissionView.swift; sourceTree = "<group>"; };
+		A2000000000000000000001C /* piroriron.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = piroriron.caf; sourceTree = "<group>"; };
+		A2000000000000000000001D /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A2000000000000000000001E /* ReminderHistoryItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderHistoryItem.swift; sourceTree = "<group>"; };
+		A2000000000000000000001F /* HomePlace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlace.swift; sourceTree = "<group>"; };
+		A20000000000000000000020 /* HomePlaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlaceStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000021 /* HomePlaceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomePlaceSettingsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000022 /* SavedPlace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPlace.swift; sourceTree = "<group>"; };
+		A20000000000000000000023 /* SavedPlaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPlaceStore.swift; sourceTree = "<group>"; };
+		A20000000000000000000024 /* SavedPlacesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPlacesSettingsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000025 /* ApproachSpeechSynthesizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApproachSpeechSynthesizer.swift; sourceTree = "<group>"; };
+		A30000000000000000000001 /* WasureteitaDeshou.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WasureteitaDeshou.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A40000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A50000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A50000000000000000000002 /* WasureteitaDeshou */,
+				A50000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A50000000000000000000002 /* WasureteitaDeshou */ = {
+			isa = PBXGroup;
+			children = (
+				A50000000000000000000004 /* App */,
+				A50000000000000000000005 /* Features */,
+				A5000000000000000000000B /* Models */,
+				A5000000000000000000000C /* Services */,
+				A50000000000000000000007 /* Resources */,
+			);
+			path = WasureteitaDeshou;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000001 /* WasureteitaDeshou.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000004 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000001 /* WasureteitaDeshouApp.swift */,
+				A2000000000000000000001D /* AppDelegate.swift */,
+				A20000000000000000000002 /* RootTabView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000005 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				A50000000000000000000008 /* Registration */,
+				A5000000000000000000000D /* PlaceConfirm */,
+				A5000000000000000000000E /* Schedule */,
+				A50000000000000000000009 /* Settings */,
+				A5000000000000000000000A /* History */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000007 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000000000000000000A /* Assets.xcassets */,
+				A2000000000000000000000B /* Info.plist */,
+				A5000000000000000000000F /* Sounds */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000008 /* Registration */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000003 /* RegistrationInputView.swift */,
+				A20000000000000000000017 /* SimpleUtteranceConfirmView.swift */,
+			);
+			path = Registration;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000009 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000005 /* SettingsView.swift */,
+				A20000000000000000000021 /* HomePlaceSettingsView.swift */,
+				A20000000000000000000024 /* SavedPlacesSettingsView.swift */,
+				A2000000000000000000001B /* LocationNotifyPermissionView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		A5000000000000000000000A /* History */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000007 /* HistoryView.swift */,
+			);
+			path = History;
+			sourceTree = "<group>";
+		};
+		A5000000000000000000000B /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000000000000000000C /* DraftUtteranceStore.swift */,
+				A2000000000000000000000D /* ParsedUtterance.swift */,
+				A2000000000000000000000E /* PlaceCandidate.swift */,
+				A2000000000000000000000F /* Reminder.swift */,
+				A2000000000000000000001E /* ReminderHistoryItem.swift */,
+				A2000000000000000000001F /* HomePlace.swift */,
+				A20000000000000000000022 /* SavedPlace.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A5000000000000000000000C /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000010 /* UtteranceParser.swift */,
+				A20000000000000000000011 /* PlaceSearchService.swift */,
+				A20000000000000000000012 /* ReminderStore.swift */,
+				A20000000000000000000013 /* UserLocationProvider.swift */,
+				A20000000000000000000018 /* AppNotifySettings.swift */,
+				A20000000000000000000019 /* ReminderNotifier.swift */,
+				A2000000000000000000001A /* LocationMonitor.swift */,
+				A20000000000000000000025 /* ApproachSpeechSynthesizer.swift */,
+				A20000000000000000000020 /* HomePlaceStore.swift */,
+				A20000000000000000000023 /* SavedPlaceStore.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A5000000000000000000000D /* PlaceConfirm */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000014 /* PlaceResolveView.swift */,
+				A20000000000000000000015 /* PlaceCandidateListView.swift */,
+				A20000000000000000000016 /* MapPlacePickerView.swift */,
+			);
+			path = PlaceConfirm;
+			sourceTree = "<group>";
+		};
+		A5000000000000000000000E /* Schedule */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000006 /* ScheduleListView.swift */,
+			);
+			path = Schedule;
+			sourceTree = "<group>";
+		};
+		A5000000000000000000000F /* Sounds */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000000000000000001C /* piroriron.caf */,
+			);
+			path = Sounds;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A60000000000000000000001 /* WasureteitaDeshou */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A70000000000000000000003 /* Build configuration list for PBXNativeTarget "WasureteitaDeshou" */;
+			buildPhases = (
+				A80000000000000000000001 /* Sources */,
+				A40000000000000000000001 /* Frameworks */,
+				A80000000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WasureteitaDeshou;
+			productName = WasureteitaDeshou;
+			productReference = A30000000000000000000001 /* WasureteitaDeshou.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A90000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A60000000000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A70000000000000000000001 /* Build configuration list for PBXProject "WasureteitaDeshou" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ja;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				ja,
+				Base,
+			);
+			mainGroup = A50000000000000000000001;
+			productRefGroup = A50000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A60000000000000000000001 /* WasureteitaDeshou */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A80000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000000000000000000000A /* Assets.xcassets in Resources */,
+				A1000000000000000000001C /* piroriron.caf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A80000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000001 /* WasureteitaDeshouApp.swift in Sources */,
+				A1000000000000000000001D /* AppDelegate.swift in Sources */,
+				A10000000000000000000002 /* RootTabView.swift in Sources */,
+				A10000000000000000000003 /* RegistrationInputView.swift in Sources */,
+				A10000000000000000000017 /* SimpleUtteranceConfirmView.swift in Sources */,
+				A10000000000000000000005 /* SettingsView.swift in Sources */,
+				A10000000000000000000006 /* ScheduleListView.swift in Sources */,
+				A10000000000000000000007 /* HistoryView.swift in Sources */,
+				A1000000000000000000000C /* DraftUtteranceStore.swift in Sources */,
+				A1000000000000000000000D /* ParsedUtterance.swift in Sources */,
+				A1000000000000000000000E /* PlaceCandidate.swift in Sources */,
+				A1000000000000000000000F /* Reminder.swift in Sources */,
+				A1000000000000000000001E /* ReminderHistoryItem.swift in Sources */,
+				A10000000000000000000010 /* UtteranceParser.swift in Sources */,
+				A10000000000000000000011 /* PlaceSearchService.swift in Sources */,
+				A10000000000000000000012 /* ReminderStore.swift in Sources */,
+				A10000000000000000000013 /* UserLocationProvider.swift in Sources */,
+				A10000000000000000000018 /* AppNotifySettings.swift in Sources */,
+				A10000000000000000000019 /* ReminderNotifier.swift in Sources */,
+				A1000000000000000000001A /* LocationMonitor.swift in Sources */,
+				A10000000000000000000025 /* ApproachSpeechSynthesizer.swift in Sources */,
+				A1000000000000000000001B /* LocationNotifyPermissionView.swift in Sources */,
+				A1000000000000000000001F /* HomePlace.swift in Sources */,
+				A10000000000000000000020 /* HomePlaceStore.swift in Sources */,
+				A10000000000000000000021 /* HomePlaceSettingsView.swift in Sources */,
+				A10000000000000000000022 /* SavedPlace.swift in Sources */,
+				A10000000000000000000023 /* SavedPlaceStore.swift in Sources */,
+				A10000000000000000000024 /* SavedPlacesSettingsView.swift in Sources */,
+				A10000000000000000000014 /* PlaceResolveView.swift in Sources */,
+				A10000000000000000000015 /* PlaceCandidateListView.swift in Sources */,
+				A10000000000000000000016 /* MapPlacePickerView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		AA0000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AA0000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N93L9LRKGK;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WasureteitaDeshou/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "忘れていたでしょう";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wasureteitadeshou.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AA0000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = N93L9LRKGK;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WasureteitaDeshou/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "忘れていたでしょう";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wasureteitadeshou.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A70000000000000000000001 /* Build configuration list for PBXProject "WasureteitaDeshou" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000001 /* Debug */,
+				AA0000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A70000000000000000000003 /* Build configuration list for PBXNativeTarget "WasureteitaDeshou" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA0000000000000000000003 /* Debug */,
+				AA0000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A90000000000000000000001 /* Project object */;
+}
