@@ -10,6 +10,7 @@ private enum RegistrationStep: Equatable {
 struct RegistrationInputView: View {
     @EnvironmentObject private var draftStore: DraftUtteranceStore
     @EnvironmentObject private var reminderStore: ReminderStore
+    @EnvironmentObject private var savedPlaceStore: SavedPlaceStore
     @FocusState private var isEditorFocused: Bool
     @State private var step: RegistrationStep = .input
     @State private var didPerformInitialFocus = false
@@ -21,7 +22,10 @@ struct RegistrationInputView: View {
                 case .input:
                     inputContent
                 case .resolve(let text):
-                    SimpleUtteranceConfirmView(rawText: text) {
+                    SimpleUtteranceConfirmView(
+                        rawText: text,
+                        knownPlaceNames: savedPlaceStore.places.map(\.displayName)
+                    ) {
                         step = .input
                     }
                 }
@@ -59,7 +63,7 @@ struct RegistrationInputView: View {
 
     private var inputContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("build: stage5-nickname-1")
+            Text("build: stage5-parse-1")
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .trailing)

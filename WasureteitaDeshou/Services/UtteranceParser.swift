@@ -1,24 +1,40 @@
 import Foundation
 
 /// 日本語の短い用事文から場所と用事を分ける。厳密な NLP ではない。
+///
+/// 例（knownPlaceNames: ["水江の製油所", "会社"]）:
+/// - 「金古のセブンイレブンで牛乳を買う」→ 場所: 金古のセブンイレブン / 用事: 牛乳を買う
+/// - 「水江の製油所に寄って書類を出す」→ 場所: 水江の製油所 / 用事: 書類を出す
+/// - 「会社に着いたらメール確認」→ 場所: 会社 / 用事: メール確認
+/// - 「帰ったら洗濯をする」→ 場所: 自宅 / 用事: 洗濯をする（suggestsHome）
+/// - 「製油所 コピー用紙買う」（呼び名一致）→ 場所: 水江の製油所 or 製油所 / 用事: コピー用紙買う
 enum UtteranceParser {
-    static func parse(_ text: String) -> ParsedUtterance {
+    /// - Parameters:
+    ///   - text: 入力文
+    ///   - knownPlaceNames: `SavedPlace.displayName` など、既知の場所の呼び名（長い名前を優先）
+    static func parse(_ text: String, knownPlaceNames: [String] = []) -> ParsedUtterance {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let home = parseHomeUtterance(trimmed) {
             return home
         }
 
-        if let split = split(by: "で", in: trimmed), !split.place.isEmpty, !split.task.isEmpty {
-            return ParsedUtterance(rawText: trimmed, placePhrase: split.place, taskPhrase: split.task)
+        // SavedPlace の呼び名（文頭・文中、長い名前優先）
+        if let known = splitByKnownNames(in: trimmed, names: knownPlaceNames) {
+            return known
         }
 
-        // 「〜に寄って〜」「〜へ行って〜」など
-        for connector in ["に寄って", "へ行って", "に行って", "まで行って"] {
+        // 「〜に寄って〜」「〜に着いたら〜」「〜へ行って〜」など
+        for connector in Self.placeTaskConnectors {
             if let split = split(by: connector, in: trimmed), !split.place.isEmpty {
                 let task = split.task.isEmpty ? "用事あり" : split.task
                 return ParsedUtterance(rawText: trimmed, placePhrase: split.place, taskPhrase: task)
             }
+        }
+
+        // 「セブンで〜」など接続詞「で」（タスク側が空でないとき）
+        if let split = split(by: "で", in: trimmed), !split.place.isEmpty, !split.task.isEmpty {
+            return ParsedUtterance(rawText: trimmed, placePhrase: split.place, taskPhrase: split.task)
         }
 
         if let brandSplit = splitByKnownBrand(in: trimmed) {
@@ -32,6 +48,40 @@ enum UtteranceParser {
             taskPhrase: trimmed.isEmpty ? "用事あり" : trimmed
         )
     }
+
+    /// 場所と用事のあいだに入る言い回し（長いもの優先で走査）
+    private static let placeTaskConnectors = [
+        "まで行ってから",
+        "に着いたら",
+        "へ着いたら",
+        "に寄って",
+        "へ寄って",
+        "に寄ったら",
+        "へ寄ったら",
+        "まで行って",
+        "へ行って",
+        "に行って"
+    ]
+
+    /// 既知名の直後に続く粒子・接続（長いもの優先）
+    private static let trailingConnectors = [
+        "に寄って",
+        "へ寄って",
+        "に着いたら",
+        "へ着いたら",
+        "まで行ってから",
+        "まで行って",
+        "へ行って",
+        "に行って",
+        "に寄ったら",
+        "へ寄ったら",
+        "で",
+        "に",
+        "へ",
+        "を",
+        "、",
+        " "
+    ]
 
     /// 「自宅で〜」「家に着いたら〜」「帰ったら〜」など。
     private static func parseHomeUtterance(_ text: String) -> ParsedUtterance? {
@@ -88,6 +138,16 @@ enum UtteranceParser {
             )
         }
 
+        // 文中の自宅ラベル（「今日は自宅で洗濯」など）。「家」単独は誤爆しやすいので除外。
+        if let midHome = splitByKnownNames(in: text, names: ["自宅", "うち"], forcePlacePhrase: "自宅") {
+            return ParsedUtterance(
+                rawText: text,
+                placePhrase: "自宅",
+                taskPhrase: midHome.taskPhrase,
+                suggestsHome: true
+            )
+        }
+
         // 「洗濯をする（自宅）」のような末尾表記は手動選択に任せ、ここでは拾わない
         if text.contains("自宅") || text.contains("家に着い") || text.contains("帰ったら") {
             // 部分一致だがプレフィックスにならなかった → 用事は全文、場所は自宅候補
@@ -120,6 +180,116 @@ enum UtteranceParser {
         return (place, task)
     }
 
+    /// SavedPlace 呼び名や自宅ラベルなど、既知の場所語で place / task を分割。
+    /// 文頭一致を優先し、なければ文中の最初の一致。長い名前優先。
+    private static func splitByKnownNames(
+        in text: String,
+        names: [String],
+        forcePlacePhrase: String? = nil
+    ) -> ParsedUtterance? {
+        let sorted = names
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 2 }
+            .sorted { $0.count > $1.count }
+
+        guard !sorted.isEmpty else { return nil }
+
+        // 1) 文頭一致
+        for name in sorted {
+            if text.hasPrefix(name) {
+                return makeKnownSplit(
+                    text: text,
+                    name: name,
+                    nameRange: text.startIndex..<text.index(text.startIndex, offsetBy: name.count),
+                    forcePlacePhrase: forcePlacePhrase
+                )
+            }
+        }
+
+        // 2) 文中一致（最初に現れる最長名）。直後が場所コネクタ／空白か、直前が「〜の」のときだけ採用。
+        var best: (name: String, range: Range<String.Index>)?
+        for name in sorted {
+            guard let range = text.range(of: name) else { continue }
+            guard isPlausibleMidPlaceMatch(text: text, nameRange: range) else { continue }
+            if let current = best {
+                if range.lowerBound < current.range.lowerBound
+                    || (range.lowerBound == current.range.lowerBound && name.count > current.name.count) {
+                    best = (name, range)
+                }
+            } else {
+                best = (name, range)
+            }
+        }
+
+        guard let best else { return nil }
+        return makeKnownSplit(
+            text: text,
+            name: best.name,
+            nameRange: best.range,
+            forcePlacePhrase: forcePlacePhrase
+        )
+    }
+
+    /// 文中の場所語として妥当か（用事側の名詞に SavedPlace 名が含まれる誤爆を抑える）
+    private static func isPlausibleMidPlaceMatch(text: String, nameRange: Range<String.Index>) -> Bool {
+        let before = String(text[..<nameRange.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let afterRaw = String(text[nameRange.upperBound...])
+        if before.hasSuffix("の") || before.isEmpty { return true }
+        if afterRaw.isEmpty { return true }
+        let afterTrimmed = afterRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if afterTrimmed.isEmpty { return true }
+        for prefix in Self.trailingConnectors where prefix != "を" {
+            if afterRaw.hasPrefix(prefix) || afterTrimmed.hasPrefix(prefix) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func makeKnownSplit(
+        text: String,
+        name: String,
+        nameRange: Range<String.Index>,
+        forcePlacePhrase: String?
+    ) -> ParsedUtterance {
+        let before = String(text[..<nameRange.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var after = String(text[nameRange.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        after = stripLeadingConnectors(after)
+
+        let place: String
+        if let forcePlacePhrase {
+            place = forcePlacePhrase
+        } else if before.isEmpty {
+            place = name
+        } else if before.hasSuffix("の") {
+            // 「金古の」+ 呼び名／ブランド
+            place = before + name
+        } else {
+            place = name
+        }
+
+        var task = after
+        if task.isEmpty { task = "用事あり" }
+
+        return ParsedUtterance(rawText: text, placePhrase: place, taskPhrase: task)
+    }
+
+    private static func stripLeadingConnectors(_ text: String) -> String {
+        var task = text
+        for prefix in Self.trailingConnectors {
+            if task.hasPrefix(prefix) {
+                task = String(task.dropFirst(prefix.count))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                break
+            }
+        }
+        return task
+    }
+
     /// 「セブンイレブンで…」のように接続詞なしでも店舗名が含まれる場合
     private static func splitByKnownBrand(in text: String) -> ParsedUtterance? {
         let brands = [
@@ -130,34 +300,9 @@ enum UtteranceParser {
             "デイリーヤマザキ",
             "イオン", "マックスバリュ",
             "コストコ",
-            "薬局", "ドラッグストア"
+            "ドラッグストア", "薬局"
         ]
-
-        for brand in brands {
-            guard let range = text.range(of: brand) else { continue }
-            let before = String(text[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-            let afterBrand = String(text[range.upperBound...])
-            let place: String
-            if before.isEmpty {
-                place = brand
-            } else if before.hasSuffix("の") {
-                place = before + brand
-            } else {
-                place = (before + brand).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-
-            var task = afterBrand
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            for prefix in ["で", "に", "へ", "を"] {
-                if task.hasPrefix(prefix) {
-                    task = String(task.dropFirst(prefix.count))
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    break
-                }
-            }
-            if task.isEmpty { task = "用事あり" }
-            return ParsedUtterance(rawText: text, placePhrase: place, taskPhrase: task)
-        }
-        return nil
+        // 長いブランド名を優先（「セブンイレブン」が「セブン」より先）
+        return splitByKnownNames(in: text, names: brands)
     }
 }

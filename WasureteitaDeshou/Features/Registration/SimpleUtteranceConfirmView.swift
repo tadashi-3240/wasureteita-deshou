@@ -4,6 +4,7 @@ import SwiftUI
 /// 内容確認 → 場所の決め方（店舗検索／自宅）→ 候補／地図 → 予定保存。
 struct SimpleUtteranceConfirmView: View {
     let rawText: String
+    let knownPlaceNames: [String]
     var onBack: () -> Void
 
     @EnvironmentObject private var reminderStore: ReminderStore
@@ -26,6 +27,7 @@ struct SimpleUtteranceConfirmView: View {
     @State private var pendingSaveAfterPermission = false
     @State private var isResolvingHome = false
     @State private var homeHintMessage: String?
+    @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
 
@@ -38,10 +40,11 @@ struct SimpleUtteranceConfirmView: View {
         case saved
     }
 
-    init(rawText: String, onBack: @escaping () -> Void) {
+    init(rawText: String, knownPlaceNames: [String] = [], onBack: @escaping () -> Void) {
         self.rawText = rawText
+        self.knownPlaceNames = knownPlaceNames
         self.onBack = onBack
-        let parsed = UtteranceParser.parse(rawText)
+        let parsed = UtteranceParser.parse(rawText, knownPlaceNames: knownPlaceNames)
         _placeText = State(initialValue: parsed.placePhrase)
         _taskText = State(initialValue: parsed.taskPhrase)
         _suggestsHome = State(initialValue: parsed.suggestsHome)
@@ -89,6 +92,21 @@ struct SimpleUtteranceConfirmView: View {
             }
             .environmentObject(locationMonitor)
         }
+        .onAppear {
+            refineParseWithSavedPlacesIfNeeded()
+        }
+    }
+
+    /// init 時点で EnvironmentObject が無い場合に備え、SavedPlace 呼び名で再分割（手編集前の1回のみ）。
+    private func refineParseWithSavedPlacesIfNeeded() {
+        guard !didRefineParse, phase == .review else { return }
+        didRefineParse = true
+        let names = Array(Set(knownPlaceNames + savedPlaceStore.places.map(\.displayName)))
+        guard !names.isEmpty else { return }
+        let parsed = UtteranceParser.parse(rawText, knownPlaceNames: names)
+        placeText = parsed.placePhrase
+        taskText = parsed.taskPhrase
+        suggestsHome = parsed.suggestsHome
     }
 
     private var phaseTitle: String {
@@ -104,7 +122,7 @@ struct SimpleUtteranceConfirmView: View {
     private var reviewContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-nickname-1")
+                Text("build: stage5-parse-1")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -226,7 +244,7 @@ struct SimpleUtteranceConfirmView: View {
     private var registerConfirmContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text("build: stage5-nickname-1")
+                Text("build: stage5-parse-1")
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -267,7 +285,7 @@ struct SimpleUtteranceConfirmView: View {
 
     private var savedContent: some View {
         VStack(spacing: 24) {
-            Text("build: stage5-nickname-1")
+            Text("build: stage5-parse-1")
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
 

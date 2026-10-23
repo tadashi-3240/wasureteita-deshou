@@ -74,6 +74,13 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 3. 店舗検索時、SavedPlace を名前部分一致で探し候補の **先頭** に載せる（MapKit が空／失敗でも SavedPlace だけで候補へ。`stage5-nickname-1`）
 4. 設定「保存した場所」で呼び名の編集・削除
 
+## 場所／用事の分割（stage5-parse-1）
+
+1. `UtteranceParser.parse(_:knownPlaceNames:)` が SavedPlace の `displayName` を既知の場所語として文頭・文中マッチ（長い名前優先）
+2. 自宅キーワード（自宅・うち・帰ったら等）とコネクタ（で／に寄って／に着いたら／へ行って等）も維持
+3. 内容確認画面は手編集可能のまま。初期値が分かれることを優先
+4. ビルド識別: `build: stage5-parse-1`
+
 ## 自宅（stage4-home-1）
 
 1. 設定「自宅を設定」: 名前（既定「自宅」）・緯度経度・住所（任意）。いまの位置（When In Use）または地図ピン

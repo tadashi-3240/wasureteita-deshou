@@ -4,6 +4,7 @@ import SwiftUI
 /// 「次へ」のあと: 場所／用事の表示 → MapKit 検索 → 一意／候補／地図。
 struct PlaceResolveView: View {
     let rawText: String
+    let knownPlaceNames: [String]
     var onFinished: (() -> Void)?
 
     @EnvironmentObject private var reminderStore: ReminderStore
@@ -19,6 +20,7 @@ struct PlaceResolveView: View {
     @State private var candidates: [PlaceCandidate] = []
     @State private var selected: PlaceCandidate?
     @State private var errorMessage: String?
+    @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
 
@@ -31,10 +33,11 @@ struct PlaceResolveView: View {
         case saved
     }
 
-    init(rawText: String, onFinished: (() -> Void)? = nil) {
+    init(rawText: String, knownPlaceNames: [String] = [], onFinished: (() -> Void)? = nil) {
         self.rawText = rawText
+        self.knownPlaceNames = knownPlaceNames
         self.onFinished = onFinished
-        let parsed = UtteranceParser.parse(rawText)
+        let parsed = UtteranceParser.parse(rawText, knownPlaceNames: knownPlaceNames)
         _editablePlace = State(initialValue: parsed.placePhrase)
         _editableTask = State(initialValue: parsed.taskPhrase)
     }
@@ -71,6 +74,15 @@ struct PlaceResolveView: View {
         }
         .navigationTitle(phaseNavigationTitle)
         .navigationBarTitleDisplayMode(.large)
+        .onAppear {
+            guard !didRefineParse, phase == .review else { return }
+            didRefineParse = true
+            let names = Array(Set(knownPlaceNames + savedPlaceStore.places.map(\.displayName)))
+            guard !names.isEmpty else { return }
+            let parsed = UtteranceParser.parse(rawText, knownPlaceNames: names)
+            editablePlace = parsed.placePhrase
+            editableTask = parsed.taskPhrase
+        }
     }
 
     private var phaseNavigationTitle: String {
