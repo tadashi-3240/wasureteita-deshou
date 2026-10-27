@@ -5,15 +5,20 @@ import UIKit
 ///
 /// iOS 制約（正直に）:
 /// - **フォアグラウンド**: アプリ前面なら日本語 TTS は動作する（設定 ON 時）。
-/// - **バックグラウンド／ロック画面**: 領域監視で短く起きても、システムが音声出力を抑えることが多く、
-///   自由文の読み上げは **保証できない**。無理押しの `UIBackgroundModes=audio` 迂回はしない。
-/// - BG／ロックでは **通知音＋文字** が基本。読み上げは前面での補助。通知をタップして前面に戻ったあとは読める。
+/// - **バックグラウンド（画面オフ／ホーム退避）**: 領域進入で短く起きているあいだに
+///   通知投稿→遅延→`AVSpeech` を開始する。`UIBackgroundModes=audio` は **接近読み上げのためだけ**
+///   （常時再生アプリではない）。進入直後の短い発話は通ることが多いが、OS の節電・Focus・消音等で
+///   無音になることがあり **100% 保証はしない**。
+/// - **ロック画面**: 進入検知で起きて発話を開始できた場合はスピーカーから聞こえることがある。
+///   ロックのまま発話が始まらない／途中で切れる端末・状態もある。その場合は **通知音＋文字** が基本で、
+///   通知タップで前面復帰後に確実に読む。
 /// - 使える声は iOS／端末依存（ダウンロード済み音声のみ）。クラウド TTS は使わない。
 @MainActor
-final class ApproachSpeechSynthesizer: NSObject {
+final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     static let shared = ApproachSpeechSynthesizer()
 
-    /// 通知音（ピロリローン）とぶつからないよう、前面の通知経路では少し待ってから読む。
+    /// 通知音（ピロリローン）とぶつからないよう、通知投稿のあとは少し待ってから読む。
+    /// 前面・BG とも同じ遅延（BG は `beginBackgroundTask` で枠を延ばす）。
     static let notificationSoundClearance: TimeInterval = 0.85
 
     private let synthesizer = AVSpeechSynthesizer()
@@ -21,6 +26,12 @@ final class ApproachSpeechSynthesizer: NSObject {
     private var lastSpokenText: String?
     private var lastSpokenAt: Date?
     private let coalesceInterval: TimeInterval = 2.0
+    private var speakBackgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
 
     /// 「忘れていたでしょう？○○予定ですよ！」形式。
     static func approachUtterance(task: String) -> String {
@@ -37,7 +48,7 @@ final class ApproachSpeechSynthesizer: NSObject {
     }
 
     /// 接近イベント用。設定が OFF なら何もしない。
-    /// - Parameter delay: 通知音との衝突回避用。前面では `notificationSoundClearance` を渡す。
+    /// - Parameter delay: 通知音との衝突回避用。通知直後は `notificationSoundClearance` を渡す（前面／BG 共通）。
     func speakApproachIfEnabled(task: String, delay: TimeInterval = 0) {
         guard AppNotifySettings.isSpeechEnabledStored else { return }
         scheduleSpeak(Self.approachUtterance(task: task), after: delay)
@@ -62,11 +73,16 @@ final class ApproachSpeechSynthesizer: NSObject {
 
     private func scheduleSpeak(_ text: String, after delay: TimeInterval) {
         pendingSpeakTask?.cancel()
+        // 遅延＋発話中にサスペンドされないよう、進入検知の短い BG 枠を延ばす。
+        beginSpeakBackgroundTask()
         pendingSpeakTask = Task { @MainActor in
             if delay > 0 {
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else {
+                endSpeakBackgroundTaskIfIdle()
+                return
+            }
             speakNow(text)
         }
     }
@@ -77,6 +93,7 @@ final class ApproachSpeechSynthesizer: NSObject {
            last == text,
            let at = lastSpokenAt,
            now.timeIntervalSince(at) < coalesceInterval {
+            endSpeakBackgroundTaskIfIdle()
             return
         }
         lastSpokenText = text
@@ -92,6 +109,7 @@ final class ApproachSpeechSynthesizer: NSObject {
         utterance.rate = style.speechRate
         utterance.pitchMultiplier = style.pitchMultiplier
         synthesizer.speak(utterance)
+        // 発話終了／キャンセルで BG タスクを閉じる（delegate）。
     }
 
     /// スタイルに合う日本語声を選ぶ。端末に無い候補はスキップし、最後は `ja-JP` 既定へ。
@@ -190,15 +208,53 @@ final class ApproachSpeechSynthesizer: NSObject {
     }
 
     /// 毎回 category／active を張り直す。通知音のあとセッションが落ちることがあるため。
-    /// BG 保証のためではない（`UIBackgroundModes=audio` は付けない）。
+    /// `.playback` + `spokenAudio` + `duckOthers`: サイレントスイッチでも鳴らし、他音はダック。
+    /// `UIBackgroundModes=audio` と組み合わせ、進入直後の短い発話を BG でも継続できる範囲で有効にする。
     private func prepareAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            // spokenAudio + duckOthers: 前面での読み上げ向け。BG 継続用の audio モードは付けない。
             try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
             try session.setActive(true, options: [])
         } catch {
             // セッション失敗でも speak は試す（端末状態次第）
+        }
+    }
+
+    // MARK: - Background task (接近読み上げの短い延長のみ)
+
+    private func beginSpeakBackgroundTask() {
+        endSpeakBackgroundTask()
+        speakBackgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "approach.speech") { [weak self] in
+            Task { @MainActor in
+                self?.pendingSpeakTask?.cancel()
+                if let self, self.synthesizer.isSpeaking {
+                    self.synthesizer.stopSpeaking(at: .immediate)
+                }
+                self?.endSpeakBackgroundTask()
+            }
+        }
+    }
+
+    private func endSpeakBackgroundTask() {
+        guard speakBackgroundTaskId != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(speakBackgroundTaskId)
+        speakBackgroundTaskId = .invalid
+    }
+
+    private func endSpeakBackgroundTaskIfIdle() {
+        guard !synthesizer.isSpeaking else { return }
+        endSpeakBackgroundTask()
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            self.endSpeakBackgroundTask()
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            self.endSpeakBackgroundTask()
         }
     }
 }

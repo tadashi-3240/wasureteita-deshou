@@ -29,6 +29,8 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
+		<!-- 接近通知の短い読み上げ（AVSpeech）を進入検知直後に継続するため。常時再生アプリではない。 -->
+		<string>audio</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

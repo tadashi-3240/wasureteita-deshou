@@ -42,7 +42,7 @@ final class AppNotifySettings: ObservableObject {
         }
     }
 
-    /// 接近通知時に用事文を読み上げる（既定 ON）。BG／ロックでは保証しない。
+    /// 接近通知時に用事文を読み上げる（既定 ON）。BG は進入直後に試行（100% 保証はしない）。
     @Published var speechEnabled: Bool {
         didSet {
             UserDefaults.standard.set(speechEnabled, forKey: Keys.speechEnabled)

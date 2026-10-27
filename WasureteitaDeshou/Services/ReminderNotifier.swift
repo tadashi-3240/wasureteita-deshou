@@ -1,7 +1,7 @@
 import Foundation
 import UserNotifications
 
-/// ローカル通知（専用音ピロリローン）。読み上げは `ApproachSpeechSynthesizer`（前面向け）。
+/// ローカル通知（専用音ピロリローン）。読み上げは `ApproachSpeechSynthesizer`（前面＋進入直後の BG 試行）。
 @MainActor
 final class ReminderNotifier {
     static let soundFileName = "piroriron.caf"

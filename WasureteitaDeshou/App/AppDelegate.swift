@@ -3,6 +3,7 @@ import UserNotifications
 
 /// 起動時に通知センターのデリゲートを張り、フォアグラウンドでもバナーを出す。
 /// 前面表示時（`willPresent`）と通知タップ後（`didReceive`）に用事文の読み上げを試す（設定 ON 時）。
+/// BG／ロック中の読み上げ本体は `LocationMonitor` 進入 → 通知投稿後の経路（`willPresent` は前面のみ）。
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
@@ -19,7 +20,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     ) {
         // フォアグラウンドでの確実な読み上げ経路のひとつ。
         // バナー＋通知音を出しつつ、音が終わってから TTS（短い遅延）。
-        // バックグラウンド／ロック画面では willPresent は呼ばれない。
+        // バックグラウンド／ロック画面では willPresent は呼ばれない（進入経路側で読む）。
         let content = notification.request.content
         Task { @MainActor in
             ApproachSpeechSynthesizer.shared.speakNotificationIfEnabled(
@@ -36,7 +37,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        // ロック／BG から通知タップで前面に戻ったあと。自由文 TTS が通る範囲。
+        // ロック／BG から通知タップで前面に戻ったあと。BG で声が出なかった場合の確実な経路。
         let content = response.notification.request.content
         Task { @MainActor in
             ApproachSpeechSynthesizer.shared.speakNotificationIfEnabled(

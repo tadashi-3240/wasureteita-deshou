@@ -1,7 +1,6 @@
 import CoreLocation
 import Foundation
 import Combine
-import UIKit
 
 /// 店舗付近の滞在判定（目安 50〜100m・約1分）。領域監視＋必要時のみ限定的な位置更新。
 enum DwellConfig {
@@ -193,14 +192,11 @@ final class LocationMonitor: NSObject, ObservableObject {
                 return
             }
             // 前面: willPresent と両方呼ぶ（同一文は synthesizer 側で短時間 coalesce）。
-            // 通知音との衝突回避のため前面は短い遅延。BG／非アクティブは即試行（成功は保証しない）。
-            let delay: TimeInterval =
-                UIApplication.shared.applicationState == .active
-                ? ApproachSpeechSynthesizer.notificationSoundClearance
-                : 0
+            // BG／非アクティブ: 進入検知の短い実行枠内で通知後に読む（audio BG + beginBackgroundTask）。
+            // 通知音との衝突回避のため、前面・BG とも同じ clearance 遅延。
             ApproachSpeechSynthesizer.shared.speakApproachIfEnabled(
                 task: reminder.task,
-                delay: delay
+                delay: ApproachSpeechSynthesizer.notificationSoundClearance
             )
         }
     }
