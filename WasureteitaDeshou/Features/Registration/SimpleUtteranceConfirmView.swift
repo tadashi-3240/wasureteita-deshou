@@ -31,7 +31,7 @@ struct SimpleUtteranceConfirmView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-places-2"
+    private static let buildTag = "build: stage5-places-3"
     private static let homePlaceLabels: Set<String> = ["自宅", "うち", "家"]
 
     private enum Phase: Equatable {

@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-places-2")
+                    Text("build: stage5-places-3")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -71,7 +71,7 @@ struct SettingsView: View {
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text("\(savedPlaceStore.places.count) 件（タップで呼び名の編集・削除）")
+                                Text("\(savedPlaceStore.places.count) 件（呼び名・住所・地図の確認／編集・削除）")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
                             }
@@ -82,7 +82,7 @@ struct SettingsView: View {
                     Text("呼び名")
                         .font(.system(size: 16, weight: .semibold))
                 } footer: {
-                    Text("自宅とは別です。「金古のセブン」「高崎のイオン」など地名＋店名の呼び名を、次回の決定・検索で一意マッチします。")
+                    Text("自宅とは別の、登録した場所だけの一覧です。呼び名・住所・地図プレビューを確認し、編集・削除できます。")
                         .font(.system(size: 14))
                 }
 
