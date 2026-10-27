@@ -8,7 +8,9 @@ final class AppNotifySettings: ObservableObject {
     private enum Keys {
         static let defaultDistance = "settings.defaultNotifyDistanceMeters"
         static let speechEnabled = "settings.approachSpeechEnabled"
-        static let speechVoiceStyle = "settings.approachSpeechVoiceStyle"
+        /// speech-9 以降。旧キーに残った無効 raw は読まず既定へ戻す。
+        static let speechVoiceStyle = "settings.approachSpeechVoiceStyle.v9"
+        static let speechVoiceStyleLegacy = "settings.approachSpeechVoiceStyle"
     }
 
     /// 純粋な定数・関数。Sendable モデルからも安全に呼べるよう MainActor から外す。
@@ -23,12 +25,24 @@ final class AppNotifySettings: ObservableObject {
     }
 
     /// 声の種類（未設定＝自然な若い女性声）。
+    /// v9 キー優先。旧キーの有効値は一度だけ引き継ぎ、無効／未知 raw は捨てて既定へ。
     nonisolated static var speechVoiceStyleStored: SpeechVoiceStyle {
-        guard let raw = UserDefaults.standard.string(forKey: Keys.speechVoiceStyle),
-              let style = SpeechVoiceStyle(rawValue: raw) else {
-            return .brightYoung
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: Keys.speechVoiceStyle),
+           let style = SpeechVoiceStyle(rawValue: raw) {
+            return style
         }
-        return style
+        if let legacy = defaults.string(forKey: Keys.speechVoiceStyleLegacy),
+           let style = SpeechVoiceStyle(rawValue: legacy) {
+            defaults.set(style.rawValue, forKey: Keys.speechVoiceStyle)
+            defaults.removeObject(forKey: Keys.speechVoiceStyleLegacy)
+            return style
+        }
+        // 旧キーにゴミが残っていても既定へ（無効 raw を掃除）
+        if defaults.object(forKey: Keys.speechVoiceStyleLegacy) != nil {
+            defaults.removeObject(forKey: Keys.speechVoiceStyleLegacy)
+        }
+        return .brightYoung
     }
 
     @Published var defaultNotifyDistanceMeters: Int {
@@ -53,6 +67,8 @@ final class AppNotifySettings: ObservableObject {
     @Published var speechVoiceStyle: SpeechVoiceStyle {
         didSet {
             UserDefaults.standard.set(speechVoiceStyle.rawValue, forKey: Keys.speechVoiceStyle)
+            // 旧キーが残っていると別経路で読まれる心配はないが、混乱防止で掃除。
+            UserDefaults.standard.removeObject(forKey: Keys.speechVoiceStyleLegacy)
         }
     }
 
@@ -61,6 +77,13 @@ final class AppNotifySettings: ObservableObject {
         defaultNotifyDistanceMeters = stored == 0 ? 1000 : Self.clamp(stored)
         speechEnabled = Self.isSpeechEnabledStored
         speechVoiceStyle = Self.speechVoiceStyleStored
+    }
+
+    /// 既定の「自然な若い女性声」へ戻し、即テスト再生できるよう UserDefaults も同期。
+    func reselectDefaultSpeechVoice() {
+        speechVoiceStyle = .brightYoung
+        UserDefaults.standard.set(SpeechVoiceStyle.brightYoung.rawValue, forKey: Keys.speechVoiceStyle)
+        UserDefaults.standard.removeObject(forKey: Keys.speechVoiceStyleLegacy)
     }
 
     nonisolated static func clamp(_ meters: Int) -> Int {

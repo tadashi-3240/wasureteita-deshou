@@ -25,6 +25,7 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
     private var pendingSpeakTask: Task<Void, Never>?
     private var lastSpokenText: String?
+    private var lastSpokenStyleRaw: String?
     private var lastSpokenAt: Date?
     private let coalesceInterval: TimeInterval = 2.0
     private var speakBackgroundTaskId: UIBackgroundTaskIdentifier = .invalid
@@ -52,7 +53,7 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     /// - Parameter delay: 通知音との衝突回避用。通知直後は `notificationSoundClearance` を渡す（前面／BG 共通）。
     func speakApproachIfEnabled(task: String, delay: TimeInterval = 0) {
         guard AppNotifySettings.isSpeechEnabledStored else { return }
-        scheduleSpeak(Self.approachUtterance(task: task), after: delay)
+        scheduleSpeak(Self.approachUtterance(task: task), after: delay, bypassCoalesce: false)
     }
 
     /// 通知の title+body から読み上げ（`willPresent` / 通知タップ用）。設定 OFF なら何もしない。
@@ -64,15 +65,16 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         guard AppNotifySettings.isSpeechEnabledStored else { return }
         let text = "\(title)\(body)"
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        scheduleSpeak(text, after: delay)
+        scheduleSpeak(text, after: delay, bypassCoalesce: false)
     }
 
     /// 設定画面のテスト。設定の ON/OFF に関わらず一度読む（動作確認用）。遅延なし。
+    /// プリセット切替直後でも必ず新スタイルで鳴るよう coalesce を bypass。
     func speakTest() {
-        scheduleSpeak(Self.approachUtterance(task: "テスト"), after: 0)
+        scheduleSpeak(Self.approachUtterance(task: "テスト"), after: 0, bypassCoalesce: true)
     }
 
-    private func scheduleSpeak(_ text: String, after delay: TimeInterval) {
+    private func scheduleSpeak(_ text: String, after delay: TimeInterval, bypassCoalesce: Bool) {
         pendingSpeakTask?.cancel()
         // 遅延＋発話中にサスペンドされないよう、進入検知の短い BG 枠を延ばす。
         beginSpeakBackgroundTask()
@@ -84,27 +86,30 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
                 endSpeakBackgroundTaskIfIdle()
                 return
             }
-            speakNow(text)
+            speakNow(text, bypassCoalesce: bypassCoalesce)
         }
     }
 
-    private func speakNow(_ text: String) {
+    private func speakNow(_ text: String, bypassCoalesce: Bool) {
+        let style = AppNotifySettings.speechVoiceStyleStored
         let now = Date()
-        if let last = lastSpokenText,
+        if !bypassCoalesce,
+           let last = lastSpokenText,
            last == text,
+           lastSpokenStyleRaw == style.rawValue,
            let at = lastSpokenAt,
            now.timeIntervalSince(at) < coalesceInterval {
             endSpeakBackgroundTaskIfIdle()
             return
         }
         lastSpokenText = text
+        lastSpokenStyleRaw = style.rawValue
         lastSpokenAt = now
 
         prepareAudioSession()
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
-        let style = AppNotifySettings.speechVoiceStyleStored
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = Self.resolveVoice(for: style)
         utterance.rate = style.speechRate
@@ -114,20 +119,29 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     /// スタイルに合う日本語声を選ぶ。端末に無い候補はスキップし、最後は `ja-JP` 既定へ。
+    /// 3スタイルは可能な限り **別の声**（またははっきり違う pitch）になるよう選ぶ。
     static func resolveVoice(for style: SpeechVoiceStyle) -> AVSpeechSynthesisVoice? {
         let available = japaneseVoices()
         let fallback = AVSpeechSynthesisVoice(language: "ja-JP")
 
         switch style {
         case .brightYoung:
+            // Premium／Enhanced／Siri 系の自然な若い女性。O-ren を Kyoko より優先。
             if let match = bestNaturalJapaneseFemale(in: available) {
                 return match
             }
             return fallback ?? available.first
         case .standard:
-            // 標準も可能な範囲で Enhanced／Premium の ja 女性を優先（無ければ言語既定）。
-            if let enhanced = bestNaturalJapaneseFemale(in: available, requireEnhancedOrBetter: true) {
-                return enhanced
+            // クラシック Kyoko（compact 優先）。brightYoung と同じ Enhanced／Premium に寄せない。
+            if let kyoko = classicKyoko(in: available) {
+                return kyoko
+            }
+            // Kyoko が無いとき: brightYoung と違う女性／既定へ。
+            let brightId = bestNaturalJapaneseFemale(in: available)?.identifier
+            if let otherFemale = available.first(where: {
+                isFemaleHint($0) && $0.identifier != brightId
+            }) {
+                return otherFemale
             }
             return fallback ?? available.first
         case .lower:
@@ -136,6 +150,11 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
             }
             if let male = available.first(where: { $0.gender == .male }) {
                 return male
+            }
+            // 男性声が無い端末でも pitch 差で区別できるよう、brightYoung と違う声を優先。
+            let brightId = bestNaturalJapaneseFemale(in: available)?.identifier
+            if let other = available.first(where: { $0.identifier != brightId }) {
+                return other
             }
             return fallback ?? available.first
         }
@@ -152,8 +171,15 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         case .enhanced: qualityHint = "Enhanced"
         default: qualityHint = ""
         }
-        if qualityHint.isEmpty { return base }
-        return "\(base)（\(qualityHint)）"
+        let pitchNote = String(format: "pitch %.2f", style.pitchMultiplier)
+        if qualityHint.isEmpty { return "\(base) · \(pitchNote)" }
+        return "\(base)（\(qualityHint)）· \(pitchNote)"
+    }
+
+    /// 2スタイルが同じ声 ID に潰れているか（設定の警告用）。
+    static func stylesCollapseToSameVoice(_ a: SpeechVoiceStyle, _ b: SpeechVoiceStyle) -> Bool {
+        guard let va = resolveVoice(for: a), let vb = resolveVoice(for: b) else { return false }
+        return va.identifier == vb.identifier
     }
 
     // MARK: - Voice matching（自然な日本語女性: Premium/Enhanced/Siri 優先）
@@ -177,6 +203,22 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
             return (voice, score)
         }
         return scored.max(by: { $0.1 < $1.1 })?.0
+    }
+
+    /// 標準用: Kyoko の compact／default を優先（Enhanced／Premium の Kyoko は避ける）。
+    private static func classicKyoko(in voices: [AVSpeechSynthesisVoice]) -> AVSpeechSynthesisVoice? {
+        let kyokos = voices.filter { voice in
+            let blob = "\(voice.identifier) \(voice.name)".lowercased()
+            return blob.contains("kyoko")
+        }
+        guard !kyokos.isEmpty else { return nil }
+        let compact = kyokos.filter { voice in
+            switch voice.quality {
+            case .premium, .enhanced: return false
+            default: return true
+            }
+        }
+        return compact.first ?? kyokos.first
     }
 
     /// 高いほど自然な若い日本語女性に近い。非女性は負。
@@ -306,27 +348,29 @@ enum SpeechVoiceStyle: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .brightYoung: return "自然な若い女性声"
-        case .standard: return "標準（Enhanced優先）"
-        case .lower: return "低め"
+        case .standard: return "標準（Kyoko）"
+        case .lower: return "低め（Hattori）"
         }
     }
 
-    /// 若さを少し残しつつ機械っぽくならない程度（やりすぎない）。
+    /// プリセット差が耳で分かるよう、差をはっきり開ける（同じ声に潰れた端末向けの保険にもなる）。
     var pitchMultiplier: Float {
         switch self {
-        case .brightYoung: return 1.06
+        case .brightYoung: return 1.14
         case .standard: return 1.0
-        case .lower: return 0.94
+        case .lower: return 0.82
         }
     }
 
-    /// 若い女性声のみ default よりごく少し速め（焦らない）。
+    /// 若い女性声は少し速め、低めは少しゆっくり。
     var speechRate: Float {
         switch self {
         case .brightYoung:
-            return min(AVSpeechUtteranceDefaultSpeechRate + 0.015, AVSpeechUtteranceMaximumSpeechRate)
-        case .standard, .lower:
+            return min(AVSpeechUtteranceDefaultSpeechRate + 0.025, AVSpeechUtteranceMaximumSpeechRate)
+        case .standard:
             return AVSpeechUtteranceDefaultSpeechRate
+        case .lower:
+            return max(AVSpeechUtteranceDefaultSpeechRate - 0.025, AVSpeechUtteranceMinimumSpeechRate)
         }
     }
 

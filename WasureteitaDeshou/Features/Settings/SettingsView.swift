@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-8")
+                    Text("build: stage5-speech-9")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -226,8 +226,13 @@ struct SettingsView: View {
                             }
                         }
                         .font(.system(size: 18))
+                        .onChange(of: notifySettings.speechVoiceStyle) { _, newStyle in
+                            // @Published didSet で UserDefaults 同期済み。変更直後に新スタイルで試す。
+                            ApproachSpeechSynthesizer.shared.speakTest()
+                            testNotifyMessage = "「\(newStyle.displayName)」で読み上げました。"
+                        }
 
-                        Text("既定は Premium／Enhanced／Siri 系の日本語女性声を優先します。pitch／速さは若さを少し残しつつ機械っぽくならない値です。端末に無い声は近い声へフォールバックします。")
+                        Text("3種は別の声を狙います（若い女性＝Premium/Enhanced/Siri系、標準＝Kyoko、低め＝Hattori）。pitch 差もはっきり開けています。端末に無い声は近い声＋pitch で区別します。")
                             .font(.system(size: 14))
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 2)
@@ -237,6 +242,12 @@ struct SettingsView: View {
                                 .font(.system(size: 14))
                                 .foregroundStyle(.secondary)
                         }
+
+                        if stylesLookAlike {
+                            Text("この端末では一部プリセットが同じ声に寄ります。pitch の違いで聴き分けてください。設定→アクセシビリティ→読み上げコンテンツ で Enhanced／Premium を追加すると差がはっきりします。")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.orange)
+                        }
                     }
 
                     Button("読み上げテスト") {
@@ -244,6 +255,14 @@ struct SettingsView: View {
                         testNotifyMessage = "読み上げを再生しました（設定のオン／オフに関係なくテストします）。"
                     }
                     .font(.system(size: 17, weight: .semibold))
+                    .disabled(SpeechVoiceStyle.availableStyles.isEmpty)
+
+                    Button("声を再選択（既定に戻して試す）") {
+                        notifySettings.reselectDefaultSpeechVoice()
+                        ApproachSpeechSynthesizer.shared.speakTest()
+                        testNotifyMessage = "既定の「自然な若い女性声」に戻して読み上げました。"
+                    }
+                    .font(.system(size: 17))
                     .disabled(SpeechVoiceStyle.availableStyles.isEmpty)
                 } header: {
                     Text("音声読み上げ")
@@ -264,6 +283,12 @@ struct SettingsView: View {
 
     private var resolvedVoiceLabel: String {
         ApproachSpeechSynthesizer.resolvedVoiceDisplayName(for: notifySettings.speechVoiceStyle)
+    }
+
+    /// 若い女性と標準が同じ声 ID に潰れているとき警告を出す。
+    private var stylesLookAlike: Bool {
+        ApproachSpeechSynthesizer.stylesCollapseToSameVoice(.brightYoung, .standard)
+            || ApproachSpeechSynthesizer.stylesCollapseToSameVoice(.brightYoung, .lower)
     }
 
     private func refreshNotificationAuthStatus() async {
