@@ -20,7 +20,7 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     /// 通知音（ピロリローン）が鳴り止んでから約3.5秒空けて読む。
     /// `piroriron.caf` 実長は afinfo で 0.69s（30429 frames @ 44100 Hz）→ 0.69 + 3.5 = 4.19。
     /// 前面・BG とも同じ遅延（BG は `beginBackgroundTask` で枠を延ばす）。
-    static let notificationSoundClearance: TimeInterval = 4.19
+    nonisolated static let notificationSoundClearance: TimeInterval = 4.19
 
     private let synthesizer = AVSpeechSynthesizer()
     private var pendingSpeakTask: Task<Void, Never>?
@@ -49,6 +49,27 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
+    /// デバッグ用: 端末の ja 声を identifier / name / quality / gender で列挙。
+    nonisolated static func japaneseVoiceCatalogDebugLines() -> [String] {
+        japaneseVoices()
+            .sorted { $0.identifier < $1.identifier }
+            .map { voice in
+                let q: String
+                switch voice.quality {
+                case .premium: q = "premium"
+                case .enhanced: q = "enhanced"
+                default: q = "default"
+                }
+                let g: String
+                switch voice.gender {
+                case .female: g = "female"
+                case .male: g = "male"
+                default: g = "unspecified"
+                }
+                return "\(voice.identifier) | \(voice.name) | \(q) | \(g)"
+            }
+    }
+
     /// 接近イベント用。設定が OFF なら何もしない。
     /// - Parameter delay: 通知音との衝突回避用。通知直後は `notificationSoundClearance` を渡す（前面／BG 共通）。
     func speakApproachIfEnabled(task: String, delay: TimeInterval = 0) {
@@ -69,9 +90,21 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     /// 設定画面のテスト。設定の ON/OFF に関わらず一度読む（動作確認用）。遅延なし。
-    /// プリセット切替直後でも必ず新スタイルで鳴るよう coalesce を bypass。
+    /// 毎回 **新規 utterance**・coalesce **完全 bypass**。端末に別声が足りないときは冒頭でプリセット名を読む。
     func speakTest() {
-        scheduleSpeak(Self.approachUtterance(task: "テスト"), after: 0, bypassCoalesce: true)
+        pendingSpeakTask?.cancel()
+        // coalesce を完全に無効化（前回と同文でも必ず再生）。
+        lastSpokenText = nil
+        lastSpokenStyleRaw = nil
+        lastSpokenAt = nil
+
+        let style = AppNotifySettings.speechVoiceStyleStored
+        var text = Self.approachUtterance(task: "テスト")
+        if Self.distinctJapaneseVoiceCount() < 3 {
+            // 差を耳で明示（同じ voice identifier に寄る端末向け）。
+            text = "\(style.displayName)。\(text)"
+        }
+        scheduleSpeak(text, after: 0, bypassCoalesce: true)
     }
 
     private func scheduleSpeak(_ text: String, after delay: TimeInterval, bypassCoalesce: Bool) {
@@ -110,54 +143,79 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
+        // 毎回新規 utterance（再利用しない）。
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = Self.resolveVoice(for: style)
-        utterance.rate = style.speechRate
-        utterance.pitchMultiplier = style.pitchMultiplier
+        let assignment = Self.voiceAssignment(for: style)
+        utterance.voice = assignment.voice
+        utterance.rate = style.speechRate(collapsed: assignment.presetsCollapsed)
+        utterance.pitchMultiplier = style.pitchMultiplier(collapsed: assignment.presetsCollapsed)
         synthesizer.speak(utterance)
         // 発話終了／キャンセルで BG タスクを閉じる（delegate）。
     }
 
-    /// スタイルに合う日本語声を選ぶ。端末に無い候補はスキップし、最後は `ja-JP` 既定へ。
-    /// 3スタイルは可能な限り **別の声**（またははっきり違う pitch）になるよう選ぶ。
-    static func resolveVoice(for style: SpeechVoiceStyle) -> AVSpeechSynthesisVoice? {
+    // MARK: - Distinct voice assignment（プリセットごとに別 identifier）
+
+    struct VoiceAssignment {
+        let voice: AVSpeechSynthesisVoice?
+        /// 端末の ja 声が足りず、3プリセットが 3 未満の identifier に寄っている。
+        let presetsCollapsed: Bool
+    }
+
+    /// 3プリセット分の声を **可能な限り異なる identifier** で確定する。
+    /// 同じ `bestNatural` への収束はしない。足りないときだけ同じ声＋極端な pitch/rate。
+    nonisolated static func resolveAllPresetVoices() -> [SpeechVoiceStyle: AVSpeechSynthesisVoice] {
         let available = japaneseVoices()
         let fallback = AVSpeechSynthesisVoice(language: "ja-JP")
-
-        switch style {
-        case .brightYoung:
-            // Premium／Enhanced／Siri 系の自然な若い女性。O-ren を Kyoko より優先。
-            if let match = bestNaturalJapaneseFemale(in: available) {
-                return match
+        guard !available.isEmpty else {
+            var map: [SpeechVoiceStyle: AVSpeechSynthesisVoice] = [:]
+            if let fallback {
+                for style in SpeechVoiceStyle.allCases { map[style] = fallback }
             }
-            return fallback ?? available.first
-        case .standard:
-            // クラシック Kyoko（compact 優先）。brightYoung と同じ Enhanced／Premium に寄せない。
-            if let kyoko = classicKyoko(in: available) {
-                return kyoko
-            }
-            // Kyoko が無いとき: brightYoung と違う女性／既定へ。
-            let brightId = bestNaturalJapaneseFemale(in: available)?.identifier
-            if let otherFemale = available.first(where: {
-                isFemaleHint($0) && $0.identifier != brightId
-            }) {
-                return otherFemale
-            }
-            return fallback ?? available.first
-        case .lower:
-            if let match = firstMatch(in: available, matching: Self.lowerPreferMatchers) {
-                return match
-            }
-            if let male = available.first(where: { $0.gender == .male }) {
-                return male
-            }
-            // 男性声が無い端末でも pitch 差で区別できるよう、brightYoung と違う声を優先。
-            let brightId = bestNaturalJapaneseFemale(in: available)?.identifier
-            if let other = available.first(where: { $0.identifier != brightId }) {
-                return other
-            }
-            return fallback ?? available.first
+            return map
         }
+
+        var used = Set<String>()
+        var map: [SpeechVoiceStyle: AVSpeechSynthesisVoice] = [:]
+
+        let bright = pickExclusive(
+            in: available,
+            excluding: &used,
+            ranked: Self.brightYoungRanked(available)
+        ) ?? available[0]
+        used.insert(bright.identifier)
+        map[.brightYoung] = bright
+
+        let standard = pickExclusive(
+            in: available,
+            excluding: &used,
+            ranked: Self.standardRanked(available)
+        ) ?? available.first { !used.contains($0.identifier) } ?? bright
+        used.insert(standard.identifier)
+        map[.standard] = standard
+
+        let lower = pickExclusive(
+            in: available,
+            excluding: &used,
+            ranked: Self.lowerRanked(available)
+        ) ?? available.first { !used.contains($0.identifier) } ?? standard
+        map[.lower] = lower
+
+        return map
+    }
+
+    nonisolated static func voiceAssignment(for style: SpeechVoiceStyle) -> VoiceAssignment {
+        let map = resolveAllPresetVoices()
+        let ids = Set(map.values.map(\.identifier))
+        return VoiceAssignment(voice: map[style], presetsCollapsed: ids.count < 3)
+    }
+
+    /// スタイルに合う日本語声（`resolveAllPresetVoices` 経由で排他割当）。
+    static func resolveVoice(for style: SpeechVoiceStyle) -> AVSpeechSynthesisVoice? {
+        voiceAssignment(for: style).voice
+    }
+
+    nonisolated static func distinctJapaneseVoiceCount() -> Int {
+        Set(japaneseVoices().map(\.identifier)).count
     }
 
     /// いま選ばれる声の短い表示名（設定の注記用）。無いときは空。品質ヒント付き。
@@ -171,9 +229,18 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         case .enhanced: qualityHint = "Enhanced"
         default: qualityHint = ""
         }
-        let pitchNote = String(format: "pitch %.2f", style.pitchMultiplier)
+        let collapsed = voiceAssignment(for: style).presetsCollapsed
+        let pitchNote = String(format: "pitch %.2f", style.pitchMultiplier(collapsed: collapsed))
         if qualityHint.isEmpty { return "\(base) · \(pitchNote)" }
         return "\(base)（\(qualityHint)）· \(pitchNote)"
+    }
+
+    /// 設定デバッグ用: identifier と name をそのまま出す。
+    static func resolvedVoiceDebugLabel(for style: SpeechVoiceStyle) -> String {
+        guard let voice = resolveVoice(for: style) else { return "(none)" }
+        let name = voice.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let namePart = name.isEmpty ? "—" : name
+        return "\(voice.identifier)\nname: \(namePart)"
     }
 
     /// 2スタイルが同じ声 ID に潰れているか（設定の警告用）。
@@ -182,48 +249,84 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         return va.identifier == vb.identifier
     }
 
-    // MARK: - Voice matching（自然な日本語女性: Premium/Enhanced/Siri 優先）
+    /// 3プリセットがすべて別 identifier か。
+    static func allPresetsHaveDistinctVoices() -> Bool {
+        let map = resolveAllPresetVoices()
+        let ids = Set(map.values.map(\.identifier))
+        return ids.count >= 3
+    }
 
-    /// 自然な日本語の女性声をスコアで選ぶ。
-    /// 優先: Premium → Enhanced → Siri 女性 → 名前付き女性（O-ren / Kyoko）→ その他女性。
-    /// 端末に無い候補は自動スキップ。
-    private static func bestNaturalJapaneseFemale(
+    // MARK: - Ranked candidates（排他割当の優先順位）
+
+    /// 若い女性: Premium → Enhanced → Siri 女性 → O-ren → Kyoko → その他女性寄り。
+    nonisolated private static func brightYoungRanked(_ voices: [AVSpeechSynthesisVoice]) -> [AVSpeechSynthesisVoice] {
+        voices.sorted { naturalFemaleScore($0) > naturalFemaleScore($1) }
+            .filter { naturalFemaleScore($0) >= 0 }
+    }
+
+    /// 標準: クラシック Kyoko（compact）を優先。無ければ Eloquence の女性寄り名、その他。
+    nonisolated private static func standardRanked(_ voices: [AVSpeechSynthesisVoice]) -> [AVSpeechSynthesisVoice] {
+        var ranked: [AVSpeechSynthesisVoice] = []
+        if let kyoko = classicKyoko(in: voices) {
+            ranked.append(kyoko)
+        }
+        let eloquenceFemaleHints = ["sandy", "shelley", "flo", "grandma"]
+        for hint in eloquenceFemaleHints {
+            if let v = voices.first(where: {
+                "\($0.identifier) \($0.name)".lowercased().contains(hint)
+            }) {
+                ranked.append(v)
+            }
+        }
+        ranked.append(contentsOf: voices.filter { isFemaleHint($0) })
+        ranked.append(contentsOf: voices)
+        return ranked
+    }
+
+    /// 低め: Hattori → 男性 → Eloquence 男性寄り → 残り。
+    nonisolated private static func lowerRanked(_ voices: [AVSpeechSynthesisVoice]) -> [AVSpeechSynthesisVoice] {
+        var ranked: [AVSpeechSynthesisVoice] = []
+        for matcher in lowerPreferMatchers {
+            if let v = voices.first(where: matcher) {
+                ranked.append(v)
+            }
+        }
+        ranked.append(contentsOf: voices.filter { $0.gender == .male })
+        let eloquenceMaleHints = ["hattori", "grandpa", "rocko", "reed", "eddy"]
+        for hint in eloquenceMaleHints {
+            if let v = voices.first(where: {
+                "\($0.identifier) \($0.name)".lowercased().contains(hint)
+            }) {
+                ranked.append(v)
+            }
+        }
+        ranked.append(contentsOf: voices)
+        return ranked
+    }
+
+    nonisolated private static func pickExclusive(
         in voices: [AVSpeechSynthesisVoice],
-        requireEnhancedOrBetter: Bool = false
+        excluding used: inout Set<String>,
+        ranked: [AVSpeechSynthesisVoice]
     ) -> AVSpeechSynthesisVoice? {
-        let scored = voices.compactMap { voice -> (AVSpeechSynthesisVoice, Int)? in
-            let score = naturalFemaleScore(voice)
-            guard score >= 0 else { return nil }
-            if requireEnhancedOrBetter {
-                switch voice.quality {
-                case .premium, .enhanced: break
-                default: return nil
-                }
+        for candidate in ranked {
+            if !used.contains(candidate.identifier) {
+                return candidate
             }
-            return (voice, score)
         }
-        return scored.max(by: { $0.1 < $1.1 })?.0
+        return voices.first { !used.contains($0.identifier) }
     }
 
-    /// 標準用: Kyoko の compact／default を優先（Enhanced／Premium の Kyoko は避ける）。
-    private static func classicKyoko(in voices: [AVSpeechSynthesisVoice]) -> AVSpeechSynthesisVoice? {
-        let kyokos = voices.filter { voice in
+    /// 自然な日本語の女性声スコア。高いほど若い女性枠向け。非女性寄りは負。
+    nonisolated private static func naturalFemaleScore(_ voice: AVSpeechSynthesisVoice) -> Int {
+        guard isFemaleHint(voice) else {
+            // Eloquence の女性寄り名は gender 未設定でも加点対象外にしないよう下で別扱い
             let blob = "\(voice.identifier) \(voice.name)".lowercased()
-            return blob.contains("kyoko")
-        }
-        guard !kyokos.isEmpty else { return nil }
-        let compact = kyokos.filter { voice in
-            switch voice.quality {
-            case .premium, .enhanced: return false
-            default: return true
+            if blob.contains("sandy") || blob.contains("shelley") || blob.contains("flo") {
+                return 5
             }
+            return -1
         }
-        return compact.first ?? kyokos.first
-    }
-
-    /// 高いほど自然な若い日本語女性に近い。非女性は負。
-    private static func naturalFemaleScore(_ voice: AVSpeechSynthesisVoice) -> Int {
-        guard isFemaleHint(voice) else { return -1 }
         let blob = "\(voice.identifier) \(voice.name)".lowercased()
         var score = 10
 
@@ -248,7 +351,23 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         return score
     }
 
-    private static func isFemaleHint(_ voice: AVSpeechSynthesisVoice) -> Bool {
+    /// 標準用: Kyoko の compact／default を優先（Enhanced／Premium の Kyoko は避ける）。
+    nonisolated private static func classicKyoko(in voices: [AVSpeechSynthesisVoice]) -> AVSpeechSynthesisVoice? {
+        let kyokos = voices.filter { voice in
+            let blob = "\(voice.identifier) \(voice.name)".lowercased()
+            return blob.contains("kyoko")
+        }
+        guard !kyokos.isEmpty else { return nil }
+        let compact = kyokos.filter { voice in
+            switch voice.quality {
+            case .premium, .enhanced: return false
+            default: return true
+            }
+        }
+        return compact.first ?? kyokos.first
+    }
+
+    nonisolated private static func isFemaleHint(_ voice: AVSpeechSynthesisVoice) -> Bool {
         if voice.gender == .female { return true }
         let blob = "\(voice.identifier) \(voice.name)".lowercased()
         if blob.contains("female") { return true }
@@ -257,7 +376,7 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         return false
     }
 
-    private static let lowerPreferMatchers: [(AVSpeechSynthesisVoice) -> Bool] = [
+    nonisolated private static let lowerPreferMatchers: [(AVSpeechSynthesisVoice) -> Bool] = [
         { v in
             let blob = "\(v.identifier) \(v.name)".lowercased()
             return blob.contains("hattori")
@@ -272,18 +391,6 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
             return hasSiri && maleHint
         },
     ]
-
-    private static func firstMatch(
-        in voices: [AVSpeechSynthesisVoice],
-        matching matchers: [(AVSpeechSynthesisVoice) -> Bool]
-    ) -> AVSpeechSynthesisVoice? {
-        for matcher in matchers {
-            if let found = voices.first(where: matcher) {
-                return found
-            }
-        }
-        return nil
-    }
 
     /// 毎回 category／active を張り直す。通知音のあとセッションが落ちることがあるため。
     /// `.playback` + `spokenAudio` + `duckOthers`: サイレントスイッチでも鳴らし、他音はダック。
@@ -353,8 +460,15 @@ enum SpeechVoiceStyle: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// プリセット差が耳で分かるよう、差をはっきり開ける（同じ声に潰れた端末向けの保険にもなる）。
-    var pitchMultiplier: Float {
+    /// 通常時の pitch。端末に別声が足りず潰れたときは極端に開く。
+    func pitchMultiplier(collapsed: Bool) -> Float {
+        if collapsed {
+            switch self {
+            case .brightYoung: return 1.40
+            case .standard: return 1.0
+            case .lower: return 0.50
+            }
+        }
         switch self {
         case .brightYoung: return 1.14
         case .standard: return 1.0
@@ -362,15 +476,22 @@ enum SpeechVoiceStyle: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// 若い女性声は少し速め、低めは少しゆっくり。
-    var speechRate: Float {
+    /// 通常時の rate。潰れたときははっきり差を付ける。
+    func speechRate(collapsed: Bool) -> Float {
+        let def = AVSpeechUtteranceDefaultSpeechRate
+        let maxR = AVSpeechUtteranceMaximumSpeechRate
+        let minR = AVSpeechUtteranceMinimumSpeechRate
+        if collapsed {
+            switch self {
+            case .brightYoung: return min(def + 0.12, maxR)
+            case .standard: return def
+            case .lower: return max(def - 0.15, minR)
+            }
+        }
         switch self {
-        case .brightYoung:
-            return min(AVSpeechUtteranceDefaultSpeechRate + 0.025, AVSpeechUtteranceMaximumSpeechRate)
-        case .standard:
-            return AVSpeechUtteranceDefaultSpeechRate
-        case .lower:
-            return max(AVSpeechUtteranceDefaultSpeechRate - 0.025, AVSpeechUtteranceMinimumSpeechRate)
+        case .brightYoung: return min(def + 0.025, maxR)
+        case .standard: return def
+        case .lower: return max(def - 0.025, minR)
         }
     }
 

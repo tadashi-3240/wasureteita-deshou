@@ -24,7 +24,7 @@ struct PlaceResolveView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-speech-9"
+    private static let buildTag = "build: stage5-speech-10"
 
     enum Phase: Equatable {
         case review

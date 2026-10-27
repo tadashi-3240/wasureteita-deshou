@@ -33,19 +33,20 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 | 通知 | 同上 |
 | マイク／Speech 認識 | **不要**（キーボード音声入力に委ねる。読み上げは TTS のみ） |
 
-## 第5段階（音声読み上げ / stage5-speech-9）
+## 第5段階（音声読み上げ / stage5-speech-10）
 
 1. `ApproachSpeechSynthesizer`（`AVSpeechSynthesizer`）で「忘れていたでしょう？○○予定ですよ！」
-2. `speechVoices()` から `ja`／`ja-JP` を列挙。3プリセットは別声を狙う: **若い女性**＝Premium → Enhanced → Siri 女性 → O-ren…／**標準**＝Kyoko compact／**低め**＝Hattori／男性。端末に無い声はスキップし pitch で区別
-3. pitch: 若い女性 **1.14**／標準 **1.0**／低め **0.82**。rate もわずかに差を付ける。読み上げテストは coalesce bypass
-4. 設定「接近時に読み上げる」（**既定 ON**）＋「声の種類」＋プリセット変更で即テスト＋「声を再選択」。UserDefaults キー `settings.approachSpeechVoiceStyle.v9`（旧キーは移行／掃除）
-5. **フォアグラウンドの確実な経路**: `willPresent` **と** 進入時 `LocationMonitor` の両方から読む（同一文＋同一スタイルは約2秒 coalesce）。通知音（`piroriron.caf` 実長 0.69s）が鳴り止んでから約3.5秒空けて読む（遅延 4.19s）。毎回 `AVAudioSession`（`.playback` / `.spokenAudio` / `.duckOthers`）を再 active
-6. **通知タップ後**（`didReceive`）でも前面復帰後に読む（BG で声が出なかった場合の確実な経路）
-7. **バックグラウンド（ホーム退避・画面オフ）**: 進入検知で短く起きた枠内に通知投稿→遅延→`AVSpeech`。`UIBackgroundModes` に **`audio`（接近読み上げ用・常時再生ではない）** と `location`。`beginBackgroundTask` で遅延＋発話中だけ延長。**100% 保証はしない**（Focus／節電等で無音になり得る）
-8. **ロック画面**: 進入直後に発話開始できれば聞こえることがあるが保証外。無理なら **通知音＋文字**、タップ後は前面で読む
-9. 使える声は **iOS／端末依存**。クラウド TTS・独自音声ファイル大量同梱はしない
-10. `japaneseVoices()` は声カタログ参照のみのため `nonisolated`（`SpeechVoiceStyle.availableStyles` から Swift 6 厳密 concurrency で呼べる）
-11. ビルド識別: `build: stage5-speech-9`
+2. `speechVoices()` から `ja`／`ja-JP` を列挙。`resolveAllPresetVoices()` で3プリセットに **必ず異なる identifier** を排他割当（同じ bestNatural に収束させない）。若い女性＝Premium → Enhanced → Siri 女性 → O-ren…／標準＝Kyoko compact／低め＝Hattori／男性／Eloquence 男性寄り
+3. 端末に ja が3未満のときだけ pitch/rate を極端に変え（1.40 / 1.0 / 0.50）、テスト文の冒頭にプリセット名を読んで差を明示。通常時 pitch は 1.14 / 1.0 / 0.82
+4. 設定「接近時に読み上げる」（**既定 ON**）＋「声の種類」＋プリセット変更で即テスト＋「声を再選択」。設定画面に **いま使う声の identifier / name**（debug）を表示。UserDefaults キー `settings.approachSpeechVoiceStyle.v10`（v9／旧キーは移行／掃除）
+5. 読み上げテストは毎回新規 `AVSpeechUtterance`・coalesce 状態クリアで **完全 bypass**
+6. **フォアグラウンドの確実な経路**: `willPresent` **と** 進入時 `LocationMonitor` の両方から読む（同一文＋同一スタイルは約2秒 coalesce）。通知音（`piroriron.caf` 実長 0.69s）が鳴り止んでから約3.5秒空けて読む（遅延 4.19s）。毎回 `AVAudioSession`（`.playback` / `.spokenAudio` / `.duckOthers`）を再 active
+7. **通知タップ後**（`didReceive`）でも前面復帰後に読む（BG で声が出なかった場合の確実な経路）
+8. **バックグラウンド（ホーム退避・画面オフ）**: 進入検知で短く起きた枠内に通知投稿→遅延→`AVSpeech`。`UIBackgroundModes` に **`audio`（接近読み上げ用・常時再生ではない）** と `location`。`beginBackgroundTask` で遅延＋発話中だけ延長。**100% 保証はしない**（Focus／節電等で無音になり得る）
+9. **ロック画面**: 進入直後に発話開始できれば聞こえることがあるが保証外。無理なら **通知音＋文字**、タップ後は前面で読む
+10. 使える声は **iOS／端末依存**。クラウド TTS・独自音声ファイル大量同梱はしない
+11. `japaneseVoices()` は声カタログ参照のみのため `nonisolated`（`SpeechVoiceStyle.availableStyles` から Swift 6 厳密 concurrency で呼べる）
+12. ビルド識別: `build: stage5-speech-10`
 
 ## 予定編集の地図確認（stage5-editmap-1）
 

@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-9")
+                    Text("build: stage5-speech-10")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -232,7 +232,7 @@ struct SettingsView: View {
                             testNotifyMessage = "「\(newStyle.displayName)」で読み上げました。"
                         }
 
-                        Text("3種は別の声を狙います（若い女性＝Premium/Enhanced/Siri系、標準＝Kyoko、低め＝Hattori）。pitch 差もはっきり開けています。端末に無い声は近い声＋pitch で区別します。")
+                        Text("3種は可能な限り別の AVSpeechSynthesisVoice（identifier 違い）を割り当てます。若い女性＝Premium/Enhanced/Siri系、標準＝Kyoko、低め＝Hattori／男性寄り。足りない端末は rate/pitch を極端に変え、テスト文の冒頭でプリセット名を読みます。")
                             .font(.system(size: 14))
                             .foregroundStyle(.secondary)
                             .padding(.vertical, 2)
@@ -243,8 +243,13 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
+                        Text("debug voice:\n\(resolvedVoiceDebug)")
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+
                         if stylesLookAlike {
-                            Text("この端末では一部プリセットが同じ声に寄ります。pitch の違いで聴き分けてください。設定→アクセシビリティ→読み上げコンテンツ で Enhanced／Premium を追加すると差がはっきりします。")
+                            Text("この端末の ja 声が足りず、一部プリセットが同じ identifier です。rate/pitch を極端に変え、テストでは冒頭でプリセット名を読みます。設定→アクセシビリティ→読み上げコンテンツ で Enhanced／Premium を追加すると差がはっきりします。")
                                 .font(.system(size: 13))
                                 .foregroundStyle(.orange)
                         }
@@ -285,10 +290,13 @@ struct SettingsView: View {
         ApproachSpeechSynthesizer.resolvedVoiceDisplayName(for: notifySettings.speechVoiceStyle)
     }
 
+    private var resolvedVoiceDebug: String {
+        ApproachSpeechSynthesizer.resolvedVoiceDebugLabel(for: notifySettings.speechVoiceStyle)
+    }
+
     /// 若い女性と標準が同じ声 ID に潰れているとき警告を出す。
     private var stylesLookAlike: Bool {
-        ApproachSpeechSynthesizer.stylesCollapseToSameVoice(.brightYoung, .standard)
-            || ApproachSpeechSynthesizer.stylesCollapseToSameVoice(.brightYoung, .lower)
+        !ApproachSpeechSynthesizer.allPresetsHaveDistinctVoices()
     }
 
     private func refreshNotificationAuthStatus() async {
