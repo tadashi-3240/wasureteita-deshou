@@ -66,21 +66,29 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 ## 内容確認の決定＝登録（stage5-decide-2）
 
 1. 内容確認フェーズは場所／用事の編集と大きな **「決定」** のみ（用事必須）。**「予定に登録する」確認は出さない**
-2. 決定時、場所欄を `SavedPlaceStore.resolveForDecide` で照合（完全一致 → 明確な部分一致 → トークン一致）
+2. 決定時、場所欄を `SavedPlaceStore.resolveForDecide` で照合（完全一致 → 正規化一致 → 地名＋店名 → 明確な部分一致 → トークン）
 3. **SavedPlace 一意**／**自宅確定**（suggestsHome または場所が自宅ラベルで自宅設定済み）／**検索で一意** → **即保存して完了**
 4. **複数候補** → 一覧で選んだら即保存。**地図ピン＋呼び名確定**も即保存（`stage5-mapnick-1`）
 5. マッチなしのときだけ **場所の決め方**: 店舗を検索／自宅を使う／**地図で場所を登録**
 6. 通知距離は設定のデフォルト。修正は予定一覧から
 7. `SimpleUtteranceConfirmView` と `PlaceResolveView` で同じ流れ
-8. ビルド識別: `build: stage5-mapnick-1`
+8. ビルド識別: `build: stage5-places-2`
 
 ## 地図で場所＋呼び名登録（stage5-mapnick-1）
 
 1. 場所不明／検索ゼロ／検索失敗時、「場所の決め方」や候補一覧に大きな **「地図で場所を登録」**
-2. `MapPlacePickerView` でピン確定後、**呼び名**入力（必須。プレースホルダ例「水江の製油所」）。空なら登録不可
+2. `MapPlacePickerView` でピン確定後、**呼び名**入力（必須。プレースホルダ例「金古のセブン / 高崎のイオン」）。空なら登録不可
 3. 確定で予定保存（決定＝登録のまま）＋ `SavedPlace` に呼び名・座標・住所を upsert
 4. 次回は呼び名一意マッチで即登録（既存 `resolveForDecide`）
 5. 自宅設定の地図ピッカーは呼び名必須にしない（`requiresNickname: false`）
+
+## 地名＋店名の呼び名（stage5-places-2）
+
+1. 「金古のセブン」「高崎のイオン」など **地名＋の＋店名** を SavedPlace の `displayName` にそのまま保存（MapKit の正式店名に上書きしない）
+2. 予定の `placeName` も場所欄の呼び名を優先
+3. `resolveForDecide`: 完全一致 → ブランド正規化一致（セブン↔セブンイレブン）→ 地名＋店名の両語一致 → 明確な部分一致 → トークン
+4. パース／検索も同じ呼び名で一意マッチ。地図登録の例文も同形式
+5. ビルド識別: `build: stage5-places-2`
 
 ## 接近通知の重複抑止（stage4-dedupe-1）
 
@@ -91,7 +99,7 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 
 ## 呼び名で場所を覚える（stage4-places-1）
 
-1. 予定確定時、場所を `SavedPlace` に upsert（約50m近傍なら名前更新）。表示名は確定時の `placeName`
+1. 予定確定時、場所を `SavedPlace` に upsert（約50m近傍なら名前更新）。表示名は場所欄の呼び名（`stage5-places-2`）
 2. 自宅（`HomePlace`）は二重保存しない
 3. 店舗検索時、SavedPlace を名前部分一致で探し候補の **先頭** に載せる（MapKit が空／失敗でも SavedPlace だけで候補へ。`stage5-nickname-1`）
 4. 内容確認の **決定** でも同じ SavedPlace を優先（一意なら即保存。`stage5-decide-2`）
@@ -101,7 +109,7 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 
 1. `UtteranceParser.parse(_:knownPlaceNames:)` が SavedPlace の `displayName` を既知の場所語として文頭・文中マッチ（長い名前優先）
 2. 自宅キーワード（自宅・うち・帰ったら等）とコネクタ（で／に寄って／に着いたら／へ行って等）も維持
-3. 内容確認画面は手編集可能のまま。初期値が分かれることを優先
+3. 内容確認画面は手編集可能のまま。初期値が分かれることを優先（例：金古のセブンで牛乳を買う）
 4. ビルド識別: `build: stage5-parse-1`
 
 ## 自宅（stage4-home-1）

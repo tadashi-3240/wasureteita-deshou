@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-10")
+                    Text("build: stage5-places-2")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -82,7 +82,7 @@ struct SettingsView: View {
                     Text("呼び名")
                         .font(.system(size: 16, weight: .semibold))
                 } footer: {
-                    Text("自宅とは別です。「水江の製油所」など、一度登録した場所を部分一致で候補の先頭に出します。")
+                    Text("自宅とは別です。「金古のセブン」「高崎のイオン」など地名＋店名の呼び名を、次回の決定・検索で一意マッチします。")
                         .font(.system(size: 14))
                 }
 

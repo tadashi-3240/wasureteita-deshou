@@ -33,7 +33,7 @@ final class SavedPlaceStore: ObservableObject {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 
-    /// 決定時: 完全一致 → 明確な部分一致 → トークン一致。一意なら座標確定、複数なら候補。
+    /// 決定時: 完全一致 → 正規化一致 → 地名＋店名 → 明確な部分一致 → トークン一致。一意なら座標確定。
     func resolveForDecide(query: String) -> SavedPlaceDecideResolve {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return .none }
@@ -43,6 +43,26 @@ final class SavedPlaceStore: ObservableObject {
             .sorted { $0.updatedAt > $1.updatedAt }
         if exact.count == 1 { return .unique(exact[0]) }
         if exact.count > 1 { return .multiple(exact) }
+
+        // 「金古のセブン」↔「金古のセブンイレブン」などブランド正規化後の一意一致
+        let qNorm = SavedPlace.normalizeForMatch(q)
+        let normalizedExact = places
+            .filter {
+                SavedPlace.normalizeForMatch($0.displayName)
+                    .localizedCaseInsensitiveCompare(qNorm) == .orderedSame
+            }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        if normalizedExact.count == 1 { return .unique(normalizedExact[0]) }
+        if normalizedExact.count > 1 { return .multiple(normalizedExact) }
+
+        // 「金古のセブン」「高崎のイオン」: 地名と店名の両方が当たるものだけ（セブン複数店舗の誤爆を抑える）
+        if SavedPlace.areaBrandParts(in: q) != nil {
+            let structured = places
+                .filter { $0.matchesAreaBrand(for: q) }
+                .sorted { $0.updatedAt > $1.updatedAt }
+            if structured.count == 1 { return .unique(structured[0]) }
+            if structured.count > 1 { return .multiple(structured) }
+        }
 
         let clear = places
             .filter { $0.isClearPartialMatch(for: q) }

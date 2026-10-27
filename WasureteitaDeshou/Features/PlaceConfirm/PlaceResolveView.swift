@@ -24,7 +24,7 @@ struct PlaceResolveView: View {
     @State private var didRefineParse = false
 
     private let search = PlaceSearchService()
-    private static let buildTag = "build: stage5-speech-10"
+    private static let buildTag = "build: stage5-places-2"
 
     enum Phase: Equatable {
         case review
@@ -116,7 +116,7 @@ struct PlaceResolveView: View {
                     Text("場所")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    TextField("例：金古のセブンイレブン", text: $editablePlace)
+                    TextField("例：金古のセブン / 高崎のイオン", text: $editablePlace)
                         .font(.system(size: 22))
                         .textFieldStyle(.roundedBorder)
                 }
@@ -366,8 +366,9 @@ struct PlaceResolveView: View {
 
     private func saveReminder() {
         guard let selected else { return }
+        let nickname = preferredNickname(for: selected)
         let reminder = Reminder(
-            placeName: selected.name,
+            placeName: nickname,
             address: selected.address,
             task: editableTask.trimmingCharacters(in: .whitespacesAndNewlines),
             latitude: selected.latitude,
@@ -376,11 +377,18 @@ struct PlaceResolveView: View {
             notifyDistanceMeters: notifySettings.defaultNotifyDistanceMeters
         )
         reminderStore.add(reminder)
-        rememberPlaceIfNeeded(selected)
+        rememberPlaceIfNeeded(selected, nickname: nickname)
         phase = .saved
     }
 
-    private func rememberPlaceIfNeeded(_ place: PlaceCandidate) {
+    /// 場所欄の呼び名を優先（「金古のセブン」）。空なら候補名。
+    private func preferredNickname(for place: PlaceCandidate) -> String {
+        let fromField = editablePlace.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !fromField.isEmpty { return fromField }
+        return place.name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func rememberPlaceIfNeeded(_ place: PlaceCandidate, nickname: String) {
         if place.id.hasPrefix("home|") { return }
         if let home = homeStore.home {
             let homeLoc = CLLocation(latitude: home.latitude, longitude: home.longitude)
@@ -389,8 +397,10 @@ struct PlaceResolveView: View {
                 return
             }
         }
+        let name = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
         savedPlaceStore.upsertFromRegistration(
-            displayName: place.name,
+            displayName: name,
             address: place.address,
             latitude: place.latitude,
             longitude: place.longitude

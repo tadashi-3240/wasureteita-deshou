@@ -63,7 +63,7 @@ struct RegistrationInputView: View {
 
     private var inputContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("build: stage5-speech-10")
+            Text("build: stage5-places-2")
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -72,7 +72,7 @@ struct RegistrationInputView: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            Text("キーボードのマイクから話して入力できます。例：金古のセブンイレブンで牛乳を買う / 帰ったら洗濯をする")
+            Text("キーボードのマイクから話して入力できます。例：金古のセブンで牛乳を買う / 高崎のイオンで買い物 / 帰ったら洗濯をする")
                 .font(.system(size: 17))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

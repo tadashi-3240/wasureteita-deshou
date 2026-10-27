@@ -139,7 +139,7 @@ final class PlaceSearchService {
         }
     }
 
-    /// 「金古のセブンイレブン」→ 複数の MapKit 向きクエリ
+    /// 「金古のセブン」「高崎のイオン」→ 複数の MapKit 向きクエリ
     private func queryVariants(for place: String) -> [String] {
         var variants: [String] = [place]
 
@@ -150,24 +150,25 @@ final class PlaceSearchService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if spaced != place { variants.append(spaced) }
 
-        // 地域 + ブランドの語順入れ替え
+        // 地域 + ブランドの語順入れ替え（短い「セブン」もセブンイレブンへ広げる）
         if let brand = Self.chainBrandKeywords.first(where: { place.contains($0) })
             ?? (place.contains("セブン") ? "セブンイレブン" : nil) {
+            let mapBrand = brand.contains("セブン") || place.contains("セブン") ? "セブンイレブン" : brand
             let area = place
                 .replacingOccurrences(of: brand, with: "")
                 .replacingOccurrences(of: "セブン", with: "")
                 .replacingOccurrences(of: "の", with: "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if !area.isEmpty {
-                variants.append("\(area) \(brand)")
-                variants.append("\(brand) \(area)")
+                variants.append("\(area) \(mapBrand)")
+                variants.append("\(mapBrand) \(area)")
                 // 町名っぽいとき
                 if !area.contains("市") && !area.contains("町") {
-                    variants.append("\(area)町 \(brand)")
-                    variants.append("\(brand) \(area)町")
+                    variants.append("\(area)町 \(mapBrand)")
+                    variants.append("\(mapBrand) \(area)町")
                 }
             } else {
-                variants.append(brand)
+                variants.append(mapBrand)
             }
         }
 

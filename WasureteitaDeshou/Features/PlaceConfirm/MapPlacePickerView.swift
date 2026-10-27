@@ -122,12 +122,12 @@ struct MapPlacePickerView: View {
                         Text("呼び名")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.secondary)
-                        TextField("例：水江の製油所", text: $nickname)
+                        TextField("例：金古のセブン / 高崎のイオン", text: $nickname)
                             .font(.system(size: 22))
                             .textFieldStyle(.roundedBorder)
                             .submitLabel(.done)
                         if trimmedNickname.isEmpty {
-                            Text("呼び名を入れると登録できます。次回からこの名前で一発登録できます。")
+                            Text("「金古のセブン」のように地名＋店名で入れると、次回この名前で一発登録できます。")
                                 .font(.system(size: 15))
                                 .foregroundStyle(.orange)
                         }

@@ -8,7 +8,7 @@ struct SavedPlacesSettingsView: View {
         List {
             if savedPlaceStore.places.isEmpty {
                 Section {
-                    Text("まだありません。予定を登録すると、その場所が呼び名つきでここに残ります。次回の検索候補の先頭に出ます。")
+                    Text("まだありません。予定を登録すると、「金古のセブン」などの呼び名でここに残ります。次回の決定・検索で一意マッチします。")
                         .font(.system(size: 17))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
@@ -45,7 +45,7 @@ struct SavedPlacesSettingsView: View {
                     Text("呼び名")
                         .font(.system(size: 16, weight: .semibold))
                 } footer: {
-                    Text("左にスワイプで削除。タップで呼び名を編集できます。自宅は別の「自宅を設定」です。")
+                    Text("左にスワイプで削除。タップで地名＋店名の呼び名を編集できます。自宅は別の「自宅を設定」です。")
                         .font(.system(size: 14))
                 }
             }
@@ -71,7 +71,7 @@ struct SavedPlaceEditView: View {
     var body: some View {
         List {
             Section {
-                TextField("呼び名（例：水江の製油所）", text: $nameText)
+                TextField("呼び名（例：金古のセブン / 高崎のイオン）", text: $nameText)
                     .font(.system(size: 20))
 
                 if !place.address.isEmpty {
