@@ -12,6 +12,7 @@
 - **呼び名**: 登録した場所を端末内に覚え、次回検索で候補先頭に出す（`stage4-places-1`）
 - **地名＋店名の呼び名**: 「金古のセブン」「高崎のイオン」を SavedPlace にそのまま保存。パース／検索／決定で一意マッチ（`stage5-places-2`）
 - **保存した場所の一覧**: 設定で SavedPlace だけの一覧。呼び名・住所・地図プレビュー（任意表示）・編集・削除（`stage5-places-3`）
+- **保存した場所の新規登録**: 一覧から地図＋呼び名で追加。`SavedPlace` upsert（約50m近傍は更新）（`stage5-places-4`）
 - **接近通知の重複抑止**: 圏内にいるあいだ1回まで（`stage4-dedupe-1`）
 - **第5（接近読み上げ）**: `AVSpeechSynthesizer` で用事文を読み上げ（設定 ON/OFF・声の種類・読み上げテスト）。3プリセットは可能な限り **別 voice identifier**（若い女性／Kyoko／Hattori・男性寄り）。足りない端末は rate/pitch を極端に変え、テスト冒頭でプリセット名を読む。設定に identifier デバッグ表示。プリセット変更で即テスト（毎回新規 utterance・coalesce bypass）。通知音（`piroriron.caf` 0.69s）が鳴り止んでから約3.5秒後に読む（遅延 4.19s）。前面は確実。ホーム退避・画面オフでは進入検知直後に試行（`UIBackgroundModes=audio` は接近読み上げ用の最小構成）。ロック中は端末次第で声が出ないことがあり、そのときは通知音＋文字、通知タップ後は前面で確実に読む（`stage5-speech-10`）
 - **予定編集の地図**: 編集シートで登録座標を Map 表示。タップでピン移動＋逆ジオコードで住所更新（`stage5-editmap-1`）
@@ -21,7 +22,7 @@
 - **呼び名で決定**: 場所欄が SavedPlace の呼び名（完全一致／明確な部分一致）なら決定で座標確定・即保存（`stage5-decide-2`）
 - **地図で場所＋呼び名**: 場所不明時に「地図で場所を登録」→ピン＋呼び名必須で予定保存と SavedPlace upsert（`stage5-mapnick-1`）
 
-ビルド識別: **`build: stage5-places-3`**
+ビルド識別: **`build: stage5-places-4`**
 
 ## 未実装／保証外
 
@@ -43,7 +44,7 @@ python3 scripts/generate_piroriron_sound.py   # ffmpeg が必要
 
 ## 実機テスト（読み上げ / speech-5）— ロック含む
 
-1. 設定で `build: stage5-places-3` を確認
+1. 設定で `build: stage5-places-4` を確認
 2. 「接近時に読み上げる」がオン（既定）・位置情報は「常に」・通知許可オン
 3. 「読み上げテスト」で前面なら即再生されること
 4. **前面**: 「テスト通知を送る」→ バナー＋通知音のあと読み上げ

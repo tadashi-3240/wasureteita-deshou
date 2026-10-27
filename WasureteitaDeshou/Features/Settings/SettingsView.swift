@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-places-3")
+                    Text("build: stage5-places-4")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -67,11 +67,11 @@ struct SettingsView: View {
                             Text("保存した場所")
                                 .font(.system(size: 18, weight: .semibold))
                             if savedPlaceStore.places.isEmpty {
-                                Text("予定を登録すると呼び名で覚えて、次回の検索候補に出ます。")
+                                Text("新規登録（地図＋呼び名）か、予定登録で覚えます。")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text("\(savedPlaceStore.places.count) 件（呼び名・住所・地図の確認／編集・削除）")
+                                Text("\(savedPlaceStore.places.count) 件（新規登録・呼び名・地図・編集・削除）")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
                             }
@@ -82,7 +82,7 @@ struct SettingsView: View {
                     Text("呼び名")
                         .font(.system(size: 16, weight: .semibold))
                 } footer: {
-                    Text("自宅とは別の、登録した場所だけの一覧です。呼び名・住所・地図プレビューを確認し、編集・削除できます。")
+                    Text("自宅とは別の、登録した場所だけの一覧です。地図＋呼び名で新規登録、呼び名・住所・地図プレビューの確認、編集・削除ができます。")
                         .font(.system(size: 14))
                 }
 

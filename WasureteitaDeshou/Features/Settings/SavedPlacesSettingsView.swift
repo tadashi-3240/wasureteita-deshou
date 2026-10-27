@@ -1,16 +1,20 @@
+import CoreLocation
 import MapKit
 import SwiftUI
 
-/// 設定「保存した場所」: SavedPlace だけの一覧。呼び名・住所・地図プレビュー、編集・削除。
+/// 設定「保存した場所」: SavedPlace だけの一覧。呼び名・住所・地図プレビュー、新規登録・編集・削除。
 struct SavedPlacesSettingsView: View {
     @EnvironmentObject private var savedPlaceStore: SavedPlaceStore
+    @StateObject private var locationProvider = UserLocationProvider()
     @State private var showMapPreviews = true
+    @State private var showAddMapPicker = false
+    @State private var addStatusMessage: String?
 
     var body: some View {
         List {
             if savedPlaceStore.places.isEmpty {
                 Section {
-                    Text("まだありません。予定を登録すると、「金古のセブン」などの呼び名でここに残ります。次回の決定・検索で一意マッチします。")
+                    Text("まだありません。下の「新規登録」で地図と呼び名を付けるか、予定を登録すると「金古のセブン」などの呼び名でここに残ります。次回の決定・検索で一意マッチします。")
                         .font(.system(size: 17))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
@@ -46,9 +50,60 @@ struct SavedPlacesSettingsView: View {
                         .font(.system(size: 14))
                 }
             }
+
+            Section {
+                Button {
+                    locationProvider.requestWhenInUseIfNeeded()
+                    showAddMapPicker = true
+                } label: {
+                    Text("新規登録（地図＋呼び名）")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+            } footer: {
+                Text("地図でピンを置き、「金古のセブン」などの呼び名を付けて保存します。近く（約50m）に既存があれば呼び名を更新します。")
+                    .font(.system(size: 14))
+            }
+
+            if let addStatusMessage {
+                Section {
+                    Text(addStatusMessage)
+                        .font(.system(size: 16))
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .navigationTitle("保存した場所")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    locationProvider.requestWhenInUseIfNeeded()
+                    showAddMapPicker = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("新規登録")
+            }
+        }
+        .onAppear {
+            locationProvider.requestWhenInUseIfNeeded()
+        }
+        .navigationDestination(isPresented: $showAddMapPicker) {
+            MapPlacePickerView(
+                initialCoordinate: locationProvider.coordinate,
+                requiresNickname: true,
+                onConfirm: { candidate in
+                    let place = savedPlaceStore.upsertFromRegistration(
+                        displayName: candidate.name,
+                        address: candidate.address,
+                        latitude: candidate.latitude,
+                        longitude: candidate.longitude
+                    )
+                    addStatusMessage = "「\(place.displayName)」を保存しました。"
+                    showAddMapPicker = false
+                }
+            )
+        }
     }
 }
 

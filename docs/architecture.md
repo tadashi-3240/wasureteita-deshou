@@ -72,7 +72,7 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 5. マッチなしのときだけ **場所の決め方**: 店舗を検索／自宅を使う／**地図で場所を登録**
 6. 通知距離は設定のデフォルト。修正は予定一覧から
 7. `SimpleUtteranceConfirmView` と `PlaceResolveView` で同じ流れ
-8. ビルド識別: `build: stage5-places-3`
+8. ビルド識別: `build: stage5-places-4`
 
 ## 地図で場所＋呼び名登録（stage5-mapnick-1）
 
@@ -98,6 +98,14 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 4. スワイプ削除も従来どおり
 5. ビルド識別: `build: stage5-places-3`
 
+## 保存した場所の新規登録（stage5-places-4）
+
+1. 設定「保存した場所」から **新規登録（地図＋呼び名）**（一覧のボタン／＋）
+2. `MapPlacePickerView`（`requiresNickname: true`）でピン確定＋呼び名必須
+3. 確定で `SavedPlaceStore.upsertFromRegistration`（約50m近傍なら更新、さもなくば追加）
+4. 予定を作らず SavedPlace だけ覚えられる。次回の決定・検索で一意マッチ
+5. ビルド識別: `build: stage5-places-4`
+
 ## 接近通知の重複抑止（stage4-dedupe-1）
 
 1. `handleApproachEnter` は通知投稿の **前に** `notifiedWhileInside` を同期的に立てる（失敗時のみ解除）
@@ -111,7 +119,7 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 2. 自宅（`HomePlace`）は二重保存しない
 3. 店舗検索時、SavedPlace を名前部分一致で探し候補の **先頭** に載せる（MapKit が空／失敗でも SavedPlace だけで候補へ。`stage5-nickname-1`）
 4. 内容確認の **決定** でも同じ SavedPlace を優先（一意なら即保存。`stage5-decide-2`）
-5. 設定「保存した場所」で一覧（呼び名・住所・地図プレビュー任意）・編集・削除（`stage5-places-3`）
+5. 設定「保存した場所」で一覧（呼び名・住所・地図プレビュー任意）・編集・削除（`stage5-places-3`）。地図＋呼び名の新規登録もここから（`stage5-places-4`）
 
 ## 場所／用事の分割（stage5-parse-1）
 
