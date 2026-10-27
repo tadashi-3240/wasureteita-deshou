@@ -192,11 +192,16 @@ final class LocationMonitor: NSObject, ObservableObject {
                 self.lastErrorMessage = errorMessage ?? "通知の送信に失敗しました。"
                 return
             }
-            // 前面は AppDelegate.willPresent が読み上げる（二重読み上げ防止）。
-            // 非アクティブ／BG 起床時のみここで試す（成功は保証しない — ApproachSpeechSynthesizer コメント参照）。
-            if UIApplication.shared.applicationState != .active {
-                ApproachSpeechSynthesizer.shared.speakApproachIfEnabled(task: reminder.task)
-            }
+            // 前面: willPresent と両方呼ぶ（同一文は synthesizer 側で短時間 coalesce）。
+            // 通知音との衝突回避のため前面は短い遅延。BG／非アクティブは即試行（成功は保証しない）。
+            let delay: TimeInterval =
+                UIApplication.shared.applicationState == .active
+                ? ApproachSpeechSynthesizer.notificationSoundClearance
+                : 0
+            ApproachSpeechSynthesizer.shared.speakApproachIfEnabled(
+                task: reminder.task,
+                delay: delay
+            )
         }
     }
 

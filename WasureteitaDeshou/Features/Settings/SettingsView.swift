@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-mapnick-1")
+                    Text("build: stage5-speech-4")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -210,7 +210,7 @@ struct SettingsView: View {
                     Toggle("接近時に読み上げる", isOn: $notifySettings.speechEnabled)
                         .font(.system(size: 18, weight: .semibold))
 
-                    Text("アプリが前面にあるとき、接近通知の表示に合わせて「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン）。バックグラウンドやロック画面では、iOS の制約で読み上げは保証できません。その場合は通知音と文字が基本です。")
+                    Text("アプリが前面にあるとき、接近通知の音のあと「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン）。バックグラウンドやロック画面では、iOS の制約で読み上げは保証できません（通知音と文字が基本）。通知をタップしてアプリが前面に戻ったあとは読み上げます。")
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)

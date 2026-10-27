@@ -7,14 +7,20 @@ import UIKit
 /// - **フォアグラウンド**: アプリ前面なら日本語 TTS は動作する（設定 ON 時）。
 /// - **バックグラウンド／ロック画面**: 領域監視で短く起きても、システムが音声出力を抑えることが多く、
 ///   自由文の読み上げは **保証できない**。無理押しの `UIBackgroundModes=audio` 迂回はしない。
-/// - BG／ロックでは **通知音＋文字** が基本。読み上げは前面での補助。
+/// - BG／ロックでは **通知音＋文字** が基本。読み上げは前面での補助。通知をタップして前面に戻ったあとは読める。
 /// - 使える声は iOS／端末依存（ダウンロード済み音声のみ）。クラウド TTS は使わない。
 @MainActor
 final class ApproachSpeechSynthesizer: NSObject {
     static let shared = ApproachSpeechSynthesizer()
 
+    /// 通知音（ピロリローン）とぶつからないよう、前面の通知経路では少し待ってから読む。
+    static let notificationSoundClearance: TimeInterval = 0.85
+
     private let synthesizer = AVSpeechSynthesizer()
-    private var didConfigureSession = false
+    private var pendingSpeakTask: Task<Void, Never>?
+    private var lastSpokenText: String?
+    private var lastSpokenAt: Date?
+    private let coalesceInterval: TimeInterval = 2.0
 
     /// 「忘れていたでしょう？○○予定ですよ！」形式。
     static func approachUtterance(task: String) -> String {
@@ -31,26 +37,52 @@ final class ApproachSpeechSynthesizer: NSObject {
     }
 
     /// 接近イベント用。設定が OFF なら何もしない。
-    func speakApproachIfEnabled(task: String) {
+    /// - Parameter delay: 通知音との衝突回避用。前面では `notificationSoundClearance` を渡す。
+    func speakApproachIfEnabled(task: String, delay: TimeInterval = 0) {
         guard AppNotifySettings.isSpeechEnabledStored else { return }
-        speak(Self.approachUtterance(task: task))
+        scheduleSpeak(Self.approachUtterance(task: task), after: delay)
     }
 
-    /// 通知の title+body から読み上げ（`willPresent` 用）。設定 OFF なら何もしない。
-    func speakNotificationIfEnabled(title: String, body: String) {
+    /// 通知の title+body から読み上げ（`willPresent` / 通知タップ用）。設定 OFF なら何もしない。
+    func speakNotificationIfEnabled(
+        title: String,
+        body: String,
+        delay: TimeInterval = ApproachSpeechSynthesizer.notificationSoundClearance
+    ) {
         guard AppNotifySettings.isSpeechEnabledStored else { return }
         let text = "\(title)\(body)"
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        speak(text)
+        scheduleSpeak(text, after: delay)
     }
 
-    /// 設定画面のテスト。設定の ON/OFF に関わらず一度読む（動作確認用）。
+    /// 設定画面のテスト。設定の ON/OFF に関わらず一度読む（動作確認用）。遅延なし。
     func speakTest() {
-        speak(Self.approachUtterance(task: "テスト"))
+        scheduleSpeak(Self.approachUtterance(task: "テスト"), after: 0)
     }
 
-    private func speak(_ text: String) {
-        prepareAudioSessionIfNeeded()
+    private func scheduleSpeak(_ text: String, after delay: TimeInterval) {
+        pendingSpeakTask?.cancel()
+        pendingSpeakTask = Task { @MainActor in
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            guard !Task.isCancelled else { return }
+            speakNow(text)
+        }
+    }
+
+    private func speakNow(_ text: String) {
+        let now = Date()
+        if let last = lastSpokenText,
+           last == text,
+           let at = lastSpokenAt,
+           now.timeIntervalSince(at) < coalesceInterval {
+            return
+        }
+        lastSpokenText = text
+        lastSpokenAt = now
+
+        prepareAudioSession()
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
@@ -157,18 +189,16 @@ final class ApproachSpeechSynthesizer: NSObject {
         return nil
     }
 
-    /// 最小限のセッション設定。BG 保証のためではない。
-    private func prepareAudioSessionIfNeeded() {
-        guard !didConfigureSession else { return }
+    /// 毎回 category／active を張り直す。通知音のあとセッションが落ちることがあるため。
+    /// BG 保証のためではない（`UIBackgroundModes=audio` は付けない）。
+    private func prepareAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
             // spokenAudio + duckOthers: 前面での読み上げ向け。BG 継続用の audio モードは付けない。
             try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
             try session.setActive(true, options: [])
-            didConfigureSession = true
         } catch {
             // セッション失敗でも speak は試す（端末状態次第）
-            didConfigureSession = false
         }
     }
 }
