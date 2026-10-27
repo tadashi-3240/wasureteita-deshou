@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-7")
+                    Text("build: stage5-speech-8")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -210,7 +210,7 @@ struct SettingsView: View {
                     Toggle("接近時に読み上げる", isOn: $notifySettings.speechEnabled)
                         .font(.system(size: 18, weight: .semibold))
 
-                    Text("接近通知の音のあと「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン）。アプリ前面では確実に読みます。ホーム退避・画面オフでも、場所への進入を検知できた直後なら読み上げを試みます（バックグラウンドの audio は接近読み上げのためだけ。常時再生アプリではありません）。ロック画面では端末状態により声が出ないことがあり、そのときは通知音と文字が基本です。通知をタップして前面に戻ったあとは確実に読みます。")
+                    Text("接近通知の音のあと「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン・自然な若い女性声）。アプリ前面では確実に読みます。ホーム退避・画面オフでも、場所への進入を検知できた直後なら読み上げを試みます（バックグラウンドの audio は接近読み上げのためだけ。常時再生アプリではありません）。ロック画面では端末状態により声が出ないことがあり、そのときは通知音と文字が基本です。通知をタップして前面に戻ったあとは確実に読みます。")
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
@@ -226,6 +226,11 @@ struct SettingsView: View {
                             }
                         }
                         .font(.system(size: 18))
+
+                        Text("既定は Premium／Enhanced／Siri 系の日本語女性声を優先します。pitch／速さは若さを少し残しつつ機械っぽくならない値です。端末に無い声は近い声へフォールバックします。")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 2)
 
                         if !resolvedVoiceLabel.isEmpty {
                             Text("いま使う声: \(resolvedVoiceLabel)")
@@ -244,7 +249,7 @@ struct SettingsView: View {
                     Text("音声読み上げ")
                         .font(.system(size: 16, weight: .semibold))
                 } footer: {
-                    Text("クラウド音声合成は使いません。端末の AVSpeechSynthesizer（日本語）のみです。使える声は iOS／端末依存です（未ダウンロードの声は候補から外れ、近い声にフォールバックします）。バックグラウンドの audio モードは接近時の短い読み上げ継続用で、音楽の常時再生や別用途の偽装ではありません。")
+                    Text("クラウド音声合成は使いません。端末の AVSpeechSynthesizer（日本語）のみです。使える声は iOS／端末依存です（設定→アクセシビリティ→読み上げコンテンツ で Enhanced／Premium を入れると自然になります）。バックグラウンドの audio モードは接近時の短い読み上げ継続用で、音楽の常時再生や別用途の偽装ではありません。")
                         .font(.system(size: 14))
                 }
             }

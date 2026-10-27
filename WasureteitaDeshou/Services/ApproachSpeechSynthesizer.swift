@@ -120,14 +120,15 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
 
         switch style {
         case .brightYoung:
-            if let match = firstMatch(in: available, matching: Self.brightYoungPreferMatchers) {
+            if let match = bestNaturalJapaneseFemale(in: available) {
                 return match
-            }
-            if let female = available.first(where: { $0.gender == .female }) {
-                return female
             }
             return fallback ?? available.first
         case .standard:
+            // 標準も可能な範囲で Enhanced／Premium の ja 女性を優先（無ければ言語既定）。
+            if let enhanced = bestNaturalJapaneseFemale(in: available, requireEnhancedOrBetter: true) {
+                return enhanced
+            }
             return fallback ?? available.first
         case .lower:
             if let match = firstMatch(in: available, matching: Self.lowerPreferMatchers) {
@@ -140,45 +141,79 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    /// いま選ばれる声の短い表示名（設定の注記用）。無いときは空。
+    /// いま選ばれる声の短い表示名（設定の注記用）。無いときは空。品質ヒント付き。
     static func resolvedVoiceDisplayName(for style: SpeechVoiceStyle) -> String {
         guard let voice = resolveVoice(for: style) else { return "" }
         let name = voice.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? voice.identifier : name
+        let base = name.isEmpty ? voice.identifier : name
+        let qualityHint: String
+        switch voice.quality {
+        case .premium: qualityHint = "Premium"
+        case .enhanced: qualityHint = "Enhanced"
+        default: qualityHint = ""
+        }
+        if qualityHint.isEmpty { return base }
+        return "\(base)（\(qualityHint)）"
     }
 
-    // MARK: - Voice matching (若い女性寄り → 無ければ次へ)
+    // MARK: - Voice matching（自然な日本語女性: Premium/Enhanced/Siri 優先）
 
-    /// 優先順: Siri 女性 → O-ren → Hattori → Kyoko enhanced → Kyoko。端末に無いものはスキップ。
-    private static let brightYoungPreferMatchers: [(AVSpeechSynthesisVoice) -> Bool] = [
-        { v in
-            let id = v.identifier.lowercased()
-            let name = v.name.lowercased()
-            let hasSiri = id.contains("siri") || name.contains("siri")
-            let femaleHint = v.gender == .female
-                || id.contains("female")
-                || name.contains("female")
-            return hasSiri && femaleHint
-        },
-        { v in
-            let blob = "\(v.identifier) \(v.name)".lowercased()
-            return blob.contains("o-ren") || blob.contains("oren")
-        },
-        { v in
-            let blob = "\(v.identifier) \(v.name)".lowercased()
-            return blob.contains("hattori")
-        },
-        { v in
-            let blob = "\(v.identifier) \(v.name)".lowercased()
-            let isKyoko = blob.contains("kyoko")
-            let enhanced = blob.contains("enhanced") || blob.contains("premium") || blob.contains("quality")
-            return isKyoko && enhanced
-        },
-        { v in
-            let blob = "\(v.identifier) \(v.name)".lowercased()
-            return blob.contains("kyoko")
-        },
-    ]
+    /// 自然な日本語の女性声をスコアで選ぶ。
+    /// 優先: Premium → Enhanced → Siri 女性 → 名前付き女性（O-ren / Kyoko）→ その他女性。
+    /// 端末に無い候補は自動スキップ。
+    private static func bestNaturalJapaneseFemale(
+        in voices: [AVSpeechSynthesisVoice],
+        requireEnhancedOrBetter: Bool = false
+    ) -> AVSpeechSynthesisVoice? {
+        let scored = voices.compactMap { voice -> (AVSpeechSynthesisVoice, Int)? in
+            let score = naturalFemaleScore(voice)
+            guard score >= 0 else { return nil }
+            if requireEnhancedOrBetter {
+                switch voice.quality {
+                case .premium, .enhanced: break
+                default: return nil
+                }
+            }
+            return (voice, score)
+        }
+        return scored.max(by: { $0.1 < $1.1 })?.0
+    }
+
+    /// 高いほど自然な若い日本語女性に近い。非女性は負。
+    private static func naturalFemaleScore(_ voice: AVSpeechSynthesisVoice) -> Int {
+        guard isFemaleHint(voice) else { return -1 }
+        let blob = "\(voice.identifier) \(voice.name)".lowercased()
+        var score = 10
+
+        switch voice.quality {
+        case .premium: score += 80
+        case .enhanced: score += 60
+        default:
+            if blob.contains("premium") { score += 75 }
+            else if blob.contains("enhanced") || blob.contains("neural") || blob.contains("quality") {
+                score += 55
+            }
+        }
+
+        let hasSiri = blob.contains("siri")
+        if hasSiri { score += 50 }
+
+        if blob.contains("o-ren") || blob.contains("oren") { score += 25 }
+        if blob.contains("kyoko") { score += 15 }
+        // Hattori は男性寄りのため若い女性枠では加点しない（誤マッチ防止で減点）
+        if blob.contains("hattori") { score -= 40 }
+
+        return score
+    }
+
+    private static func isFemaleHint(_ voice: AVSpeechSynthesisVoice) -> Bool {
+        if voice.gender == .female { return true }
+        let blob = "\(voice.identifier) \(voice.name)".lowercased()
+        if blob.contains("female") { return true }
+        // 日本語の代表的な女性声名（gender 未設定の古いエントリ向け）
+        if blob.contains("kyoko") || blob.contains("o-ren") || blob.contains("oren") { return true }
+        return false
+    }
 
     private static let lowerPreferMatchers: [(AVSpeechSynthesisVoice) -> Bool] = [
         { v in
@@ -270,26 +305,26 @@ enum SpeechVoiceStyle: String, CaseIterable, Identifiable, Sendable {
 
     var displayName: String {
         switch self {
-        case .brightYoung: return "明るい若い声"
-        case .standard: return "標準"
+        case .brightYoung: return "自然な若い女性声"
+        case .standard: return "標準（Enhanced優先）"
         case .lower: return "低め"
         }
     }
 
-    /// やや上げて元気に（やりすぎない）。
+    /// 若さを少し残しつつ機械っぽくならない程度（やりすぎない）。
     var pitchMultiplier: Float {
         switch self {
-        case .brightYoung: return 1.15
+        case .brightYoung: return 1.06
         case .standard: return 1.0
-        case .lower: return 0.92
+        case .lower: return 0.94
         }
     }
 
-    /// default より少し速め／明るめ（若い声のみ）。
+    /// 若い女性声のみ default よりごく少し速め（焦らない）。
     var speechRate: Float {
         switch self {
         case .brightYoung:
-            return min(AVSpeechUtteranceDefaultSpeechRate + 0.04, AVSpeechUtteranceMaximumSpeechRate)
+            return min(AVSpeechUtteranceDefaultSpeechRate + 0.015, AVSpeechUtteranceMaximumSpeechRate)
         case .standard, .lower:
             return AVSpeechUtteranceDefaultSpeechRate
         }

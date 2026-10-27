@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 /// 通知距離の全体デフォルト（新規予定に適用）。予定ごとの上書きも Reminder に持つ。
-/// 接近時の音声読み上げ ON/OFF・声の種類もここ（既定は ON／明るい若い声）。
+/// 接近時の音声読み上げ ON/OFF・声の種類もここ（既定は ON／自然な若い女性声）。
 @MainActor
 final class AppNotifySettings: ObservableObject {
     private enum Keys {
@@ -22,7 +22,7 @@ final class AppNotifySettings: ObservableObject {
         return UserDefaults.standard.bool(forKey: Keys.speechEnabled)
     }
 
-    /// 声の種類（未設定＝明るい若い声）。
+    /// 声の種類（未設定＝自然な若い女性声）。
     nonisolated static var speechVoiceStyleStored: SpeechVoiceStyle {
         guard let raw = UserDefaults.standard.string(forKey: Keys.speechVoiceStyle),
               let style = SpeechVoiceStyle(rawValue: raw) else {
