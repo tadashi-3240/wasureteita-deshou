@@ -33,19 +33,19 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 | 通知 | 同上 |
 | マイク／Speech 認識 | **不要**（キーボード音声入力に委ねる。読み上げは TTS のみ） |
 
-## 第5段階（音声読み上げ / stage5-speech-5）
+## 第5段階（音声読み上げ / stage5-speech-6）
 
 1. `ApproachSpeechSynthesizer`（`AVSpeechSynthesizer`）で「忘れていたでしょう？○○予定ですよ！」
 2. `speechVoices()` から `ja`／`ja-JP` を列挙。既定は **明るい若い声**（Siri 女性 → O-ren → Hattori → Kyoko enhanced → Kyoko → `ja-JP` フォールバック）。端末に無い声はスキップ
 3. 若い声は `pitchMultiplier` 約 1.15、`rate` を default より少し上（元気め・やりすぎない）
 4. 設定「接近時に読み上げる」（**既定 ON**）＋「声の種類」（明るい若い声／標準／低め、UserDefaults）＋「読み上げテスト」
-5. **フォアグラウンドの確実な経路**: `willPresent` **と** 進入時 `LocationMonitor` の両方から読む（同一文は約2秒 coalesce）。通知音との衝突回避のため約 0.85 秒遅延。毎回 `AVAudioSession`（`.playback` / `.spokenAudio` / `.duckOthers`）を再 active
+5. **フォアグラウンドの確実な経路**: `willPresent` **と** 進入時 `LocationMonitor` の両方から読む（同一文は約2秒 coalesce）。通知音（`piroriron.caf` 実長 0.69s）が鳴り止んでから約2秒空けて読む（遅延 2.69s）。毎回 `AVAudioSession`（`.playback` / `.spokenAudio` / `.duckOthers`）を再 active
 6. **通知タップ後**（`didReceive`）でも前面復帰後に読む（BG で声が出なかった場合の確実な経路）
 7. **バックグラウンド（ホーム退避・画面オフ）**: 進入検知で短く起きた枠内に通知投稿→遅延→`AVSpeech`。`UIBackgroundModes` に **`audio`（接近読み上げ用・常時再生ではない）** と `location`。`beginBackgroundTask` で遅延＋発話中だけ延長。**100% 保証はしない**（Focus／節電等で無音になり得る）
 8. **ロック画面**: 進入直後に発話開始できれば聞こえることがあるが保証外。無理なら **通知音＋文字**、タップ後は前面で読む
 9. 使える声は **iOS／端末依存**。クラウド TTS・独自音声ファイル大量同梱はしない
 10. `japaneseVoices()` は声カタログ参照のみのため `nonisolated`（`SpeechVoiceStyle.availableStyles` から Swift 6 厳密 concurrency で呼べる）
-11. ビルド識別: `build: stage5-speech-5`
+11. ビルド識別: `build: stage5-speech-6`
 
 ## 予定編集の地図確認（stage5-editmap-1）
 

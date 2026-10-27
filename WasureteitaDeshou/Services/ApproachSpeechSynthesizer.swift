@@ -17,9 +17,10 @@ import UIKit
 final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     static let shared = ApproachSpeechSynthesizer()
 
-    /// 通知音（ピロリローン）とぶつからないよう、通知投稿のあとは少し待ってから読む。
+    /// 通知音（ピロリローン）が鳴り止んでから約2秒空けて読む。
+    /// `piroriron.caf` 実長は afinfo で 0.69s（30429 frames @ 44100 Hz）→ 0.69 + 2.0 = 2.69。
     /// 前面・BG とも同じ遅延（BG は `beginBackgroundTask` で枠を延ばす）。
-    static let notificationSoundClearance: TimeInterval = 0.85
+    static let notificationSoundClearance: TimeInterval = 2.69
 
     private let synthesizer = AVSpeechSynthesizer()
     private var pendingSpeakTask: Task<Void, Never>?
