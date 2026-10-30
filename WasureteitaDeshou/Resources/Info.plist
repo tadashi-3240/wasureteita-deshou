@@ -26,6 +26,8 @@
 	<string>近くの店舗を探すため、また指定した場所に近づいたことを知らせるために、利用中の位置情報を使います。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>アプリを開いていないときでも、登録した場所に近づいたらお知らせし、店舗付近にしばらく滞在したら自動で解除するために位置情報を使います。正確な距離や正確な1分は保証しません。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>接近時に流す「忘れていたでしょう」のフレーズを、あなたの声で録音するためにマイクを使います。</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

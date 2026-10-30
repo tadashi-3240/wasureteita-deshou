@@ -1,12 +1,15 @@
 import AVFoundation
 import UIKit
 
-/// 接近時の用事文を `AVSpeechSynthesizer` で読み上げる。
+/// 接近時の用事文を読み上げる。
+///
+/// - 設定に「忘れていたでしょう」の録音があればそれを再生し、用事部分は TTS。
+/// - 録音が無ければ全文を `AVSpeechSynthesizer` で読む。
 ///
 /// iOS 制約（正直に）:
-/// - **フォアグラウンド**: アプリ前面なら日本語 TTS は動作する（設定 ON 時）。
+/// - **フォアグラウンド**: アプリ前面なら日本語 TTS／録音再生は動作する（設定 ON 時）。
 /// - **バックグラウンド（画面オフ／ホーム退避）**: 領域進入で短く起きているあいだに
-///   通知投稿→遅延→`AVSpeech` を開始する。`UIBackgroundModes=audio` は **接近読み上げのためだけ**
+///   通知投稿→遅延→録音／`AVSpeech` を開始する。`UIBackgroundModes=audio` は **接近読み上げのためだけ**
 ///   （常時再生アプリではない）。進入直後の短い発話は通ることが多いが、OS の節電・Focus・消音等で
 ///   無音になることがあり **100% 保証はしない**。
 /// - **ロック画面**: 進入検知で起きて発話を開始できた場合はスピーカーから聞こえることがある。
@@ -14,15 +17,20 @@ import UIKit
 ///   通知タップで前面復帰後に確実に読む。
 /// - 使える声は iOS／端末依存（ダウンロード済み音声のみ）。クラウド TTS は使わない。
 @MainActor
-final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
+final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegate {
     static let shared = ApproachSpeechSynthesizer()
 
     /// 通知音（ピロリローン）が鳴り止んでから約1.75秒空けて読む（旧 3.5s の半分）。
     /// `piroriron.caf` 実長は afinfo で 0.69s（30429 frames @ 44100 Hz）→ 0.69 + 1.75 = 2.44。
-    /// 前面・BG とも同じ遅延（BG は `beginBackgroundTask` で枠を延ばす）。
+    /// 前面・BG とも同じ遅延（BG は `beginBackgroundTask` で枠を延ばす）。speech-11 の値を維持。
     nonisolated static let notificationSoundClearance: TimeInterval = 2.44
 
+    /// 固定フレーズ（録音対象）。
+    nonisolated static let phraseIntro = "忘れていたでしょう？"
+
     private let synthesizer = AVSpeechSynthesizer()
+    private var phrasePlayer: AVAudioPlayer?
+    private var pendingAfterPhraseTTS: String?
     private var pendingSpeakTask: Task<Void, Never>?
     private var lastSpokenText: String?
     private var lastSpokenStyleRaw: String?
@@ -37,7 +45,25 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
 
     /// 「忘れていたでしょう？○○予定ですよ！」形式。
     static func approachUtterance(task: String) -> String {
-        "忘れていたでしょう？\(task)予定ですよ！"
+        "\(phraseIntro)\(taskSuffix(task: task))"
+    }
+
+    /// 用事部分のみ（録音のあとに TTS）。
+    static func taskSuffix(task: String) -> String {
+        "\(task)予定ですよ！"
+    }
+
+    /// 設定／接近の再生を止める（録音開始・プレビューと干渉しないように）。
+    func stopAllAudio() {
+        pendingSpeakTask?.cancel()
+        pendingSpeakTask = nil
+        pendingAfterPhraseTTS = nil
+        phrasePlayer?.stop()
+        phrasePlayer = nil
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        endSpeakBackgroundTask()
     }
 
     /// 端末に入っている日本語（`ja` / `ja-JP`）の声。無いものはここに出ない。
@@ -74,10 +100,17 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     /// - Parameter delay: 通知音との衝突回避用。通知直後は `notificationSoundClearance` を渡す（前面／BG 共通）。
     func speakApproachIfEnabled(task: String, delay: TimeInterval = 0) {
         guard AppNotifySettings.isSpeechEnabledStored else { return }
-        scheduleSpeak(Self.approachUtterance(task: task), after: delay, bypassCoalesce: false)
+        scheduleApproach(
+            coalesceKey: Self.approachUtterance(task: task),
+            taskSuffix: Self.taskSuffix(task: task),
+            after: delay,
+            bypassCoalesce: false,
+            voiceStylePrefix: nil
+        )
     }
 
     /// 通知の title+body から読み上げ（`willPresent` / 通知タップ用）。設定 OFF なら何もしない。
+    /// 接近通知は title＝フレーズ・body＝用事。録音があればフレーズは録音、用事は TTS。
     func speakNotificationIfEnabled(
         title: String,
         body: String,
@@ -86,30 +119,63 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         guard AppNotifySettings.isSpeechEnabledStored else { return }
         let text = "\(title)\(body)"
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        scheduleSpeak(text, after: delay, bypassCoalesce: false)
+
+        let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isApproachPhraseTitle = title.hasPrefix("忘れていたでしょう")
+        if isApproachPhraseTitle, !trimmedBody.isEmpty {
+            scheduleApproach(
+                coalesceKey: text,
+                taskSuffix: trimmedBody,
+                after: delay,
+                bypassCoalesce: false,
+                voiceStylePrefix: nil
+            )
+        } else {
+            scheduleSpeak(text, after: delay, bypassCoalesce: false)
+        }
     }
 
     /// 設定画面のテスト。設定の ON/OFF に関わらず一度読む（動作確認用）。遅延なし。
-    /// 毎回 **新規 utterance**・coalesce **完全 bypass**。端末に別声が足りないときは冒頭でプリセット名を読む。
+    /// 毎回 **新規 utterance**・coalesce **完全 bypass**。録音があればそれを再生してから用事を TTS。
+    /// 端末に別声が足りないときは（録音無しのとき）冒頭でプリセット名を読む。
     func speakTest() {
         pendingSpeakTask?.cancel()
+        phrasePlayer?.stop()
+        phrasePlayer = nil
+        pendingAfterPhraseTTS = nil
         // coalesce を完全に無効化（前回と同文でも必ず再生）。
         lastSpokenText = nil
         lastSpokenStyleRaw = nil
         lastSpokenAt = nil
 
         let style = AppNotifySettings.speechVoiceStyleStored
-        var text = Self.approachUtterance(task: "テスト")
-        if Self.distinctJapaneseVoiceCount() < 3 {
-            // 差を耳で明示（同じ voice identifier に寄る端末向け）。
-            text = "\(style.displayName)。\(text)"
+        let suffix = Self.taskSuffix(task: "テスト")
+        var voicePrefix: String?
+        if !PhraseRecordingStore.hasRecordingOnDisk, Self.distinctJapaneseVoiceCount() < 3 {
+            // 差を耳で明示（同じ voice identifier に寄る端末向け）。録音時は冒頭が自分の声なので付けない。
+            voicePrefix = "\(style.displayName)。"
         }
-        scheduleSpeak(text, after: 0, bypassCoalesce: true)
+        scheduleApproach(
+            coalesceKey: (voicePrefix ?? "") + Self.approachUtterance(task: "テスト"),
+            taskSuffix: suffix,
+            after: 0,
+            bypassCoalesce: true,
+            voiceStylePrefix: voicePrefix
+        )
     }
 
-    private func scheduleSpeak(_ text: String, after delay: TimeInterval, bypassCoalesce: Bool) {
+    /// 録音があれば再生→用事 TTS。無ければ全文 TTS（prefix があれば先頭に付与）。
+    private func scheduleApproach(
+        coalesceKey: String,
+        taskSuffix: String,
+        after delay: TimeInterval,
+        bypassCoalesce: Bool,
+        voiceStylePrefix: String?
+    ) {
         pendingSpeakTask?.cancel()
-        // 遅延＋発話中にサスペンドされないよう、進入検知の短い BG 枠を延ばす。
+        phrasePlayer?.stop()
+        phrasePlayer = nil
+        pendingAfterPhraseTTS = nil
         beginSpeakBackgroundTask()
         pendingSpeakTask = Task { @MainActor in
             if delay > 0 {
@@ -119,30 +185,94 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
                 endSpeakBackgroundTaskIfIdle()
                 return
             }
-            speakNow(text, bypassCoalesce: bypassCoalesce)
+            if !markCoalesce(coalesceKey, bypass: bypassCoalesce) {
+                endSpeakBackgroundTaskIfIdle()
+                return
+            }
+            PhraseRecordingStore.shared.stopPreview()
+            if PhraseRecordingStore.hasRecordingOnDisk {
+                playPhraseThenSpeak(taskSuffix: taskSuffix)
+            } else {
+                let full = (voiceStylePrefix ?? "") + Self.phraseIntro + taskSuffix
+                speakTTSNow(full)
+            }
         }
     }
 
-    private func speakNow(_ text: String, bypassCoalesce: Bool) {
+    private func scheduleSpeak(_ text: String, after delay: TimeInterval, bypassCoalesce: Bool) {
+        pendingSpeakTask?.cancel()
+        phrasePlayer?.stop()
+        phrasePlayer = nil
+        pendingAfterPhraseTTS = nil
+        beginSpeakBackgroundTask()
+        pendingSpeakTask = Task { @MainActor in
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+            guard !Task.isCancelled else {
+                endSpeakBackgroundTaskIfIdle()
+                return
+            }
+            if !markCoalesce(text, bypass: bypassCoalesce) {
+                endSpeakBackgroundTaskIfIdle()
+                return
+            }
+            speakTTSNow(text)
+        }
+    }
+
+    /// - Returns: false なら coalesce でスキップ。
+    private func markCoalesce(_ text: String, bypass: Bool) -> Bool {
         let style = AppNotifySettings.speechVoiceStyleStored
         let now = Date()
-        if !bypassCoalesce,
+        if !bypass,
            let last = lastSpokenText,
            last == text,
            lastSpokenStyleRaw == style.rawValue,
            let at = lastSpokenAt,
            now.timeIntervalSince(at) < coalesceInterval {
-            endSpeakBackgroundTaskIfIdle()
-            return
+            return false
         }
         lastSpokenText = text
         lastSpokenStyleRaw = style.rawValue
         lastSpokenAt = now
+        return true
+    }
 
+    private func playPhraseThenSpeak(taskSuffix: String) {
+        let url = PhraseRecordingStore.fileURL
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            speakTTSNow(Self.phraseIntro + taskSuffix)
+            return
+        }
         prepareAudioSession()
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.delegate = self
+            player.prepareToPlay()
+            pendingAfterPhraseTTS = taskSuffix
+            phrasePlayer = player
+            guard player.play() else {
+                pendingAfterPhraseTTS = nil
+                phrasePlayer = nil
+                speakTTSNow(Self.phraseIntro + taskSuffix)
+                return
+            }
+        } catch {
+            pendingAfterPhraseTTS = nil
+            speakTTSNow(Self.phraseIntro + taskSuffix)
+        }
+    }
+
+    private func speakTTSNow(_ text: String) {
+        prepareAudioSession()
+        if synthesizer.isSpeaking {
+            synthesizer.stopSpeaking(at: .immediate)
+        }
+        let style = AppNotifySettings.speechVoiceStyleStored
         // 毎回新規 utterance（再利用しない）。
         let utterance = AVSpeechUtterance(string: text)
         let assignment = Self.voiceAssignment(for: style)
@@ -412,6 +542,9 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         speakBackgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "approach.speech") { [weak self] in
             Task { @MainActor in
                 self?.pendingSpeakTask?.cancel()
+                self?.pendingAfterPhraseTTS = nil
+                self?.phrasePlayer?.stop()
+                self?.phrasePlayer = nil
                 if let self, self.synthesizer.isSpeaking {
                     self.synthesizer.stopSpeaking(at: .immediate)
                 }
@@ -428,6 +561,8 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
 
     private func endSpeakBackgroundTaskIfIdle() {
         guard !synthesizer.isSpeaking else { return }
+        guard phrasePlayer == nil || phrasePlayer?.isPlaying != true else { return }
+        guard pendingAfterPhraseTTS == nil else { return }
         endSpeakBackgroundTask()
     }
 
@@ -440,6 +575,20 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor in
             self.endSpeakBackgroundTask()
+        }
+    }
+
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            guard self.phrasePlayer === player else { return }
+            self.phrasePlayer = nil
+            let suffix = self.pendingAfterPhraseTTS
+            self.pendingAfterPhraseTTS = nil
+            if let suffix, !suffix.isEmpty {
+                self.speakTTSNow(suffix)
+            } else {
+                self.endSpeakBackgroundTaskIfIdle()
+            }
         }
     }
 }

@@ -63,7 +63,7 @@ struct RegistrationInputView: View {
 
     private var inputContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("build: stage5-speech-11")
+            Text("build: stage5-speech-12")
                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .trailing)

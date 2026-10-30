@@ -20,7 +20,8 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 | **Services/SavedPlaceStore** | 登録済み場所の呼び名（UserDefaults） | places |
 | **Services/LocationMonitor** | 接近＋滞在の `CLCircularRegion`、限定的位置更新 | 3〜4 |
 | **Services/ReminderNotifier** | ローカル通知＋`piroriron.caf` | 3 |
-| **Services/ApproachSpeechSynthesizer** | `AVSpeechSynthesizer` 日本語読み上げ（自然な若い女性声・Premium/Enhanced/Siri 優先・前面＋進入直後 BG 試行） | 5 |
+| **Services/ApproachSpeechSynthesizer** | 接近読み上げ（録音フレーズ＋用事 TTS／全文 TTS。前面＋進入直後 BG 試行） | 5 |
+| **Services/PhraseRecordingStore** | 「忘れていたでしょう」の端末内録音（録る／差し替え／削除／プレビュー） | 5 |
 | **Services/AppNotifySettings** | デフォルト距離・読み上げ ON/OFF・声の種類 | 3〜5 |
 | **Services/ReminderStore** | 予定・履歴の永続化＋監視同期 | 2〜4 |
 
@@ -31,22 +32,23 @@ iOS 18+ / SwiftUI / iPhone専用。既存 Expo・Web とは独立し、ルート
 | 位置 When In Use | 店舗検索・地図・**自宅のいまの位置** |
 | 位置 Always | 予定登録時の説明シート／設定。BG 接近・滞在に推奨 |
 | 通知 | 同上 |
-| マイク／Speech 認識 | **不要**（キーボード音声入力に委ねる。読み上げは TTS のみ） |
+| マイク | 設定で「忘れていたでしょう」を録音するとき（`NSMicrophoneUsageDescription`） |
+| Speech 認識 | **不要**（キーボード音声入力に委ねる） |
 
-## 第5段階（音声読み上げ / stage5-speech-11）
+## 第5段階（音声読み上げ / stage5-speech-12）
 
-1. `ApproachSpeechSynthesizer`（`AVSpeechSynthesizer`）で「忘れていたでしょう？○○予定ですよ！」
-2. `speechVoices()` から `ja`／`ja-JP` を列挙。`resolveAllPresetVoices()` で3プリセットに **必ず異なる identifier** を排他割当（同じ bestNatural に収束させない）。若い女性＝Premium → Enhanced → Siri 女性 → O-ren…／標準＝Kyoko compact／低め＝Hattori／男性／Eloquence 男性寄り
-3. 端末に ja が3未満のときだけ pitch/rate を極端に変え（1.40 / 1.0 / 0.50）、テスト文の冒頭にプリセット名を読んで差を明示。通常時 pitch は 1.14 / 1.0 / 0.82
-4. 設定「接近時に読み上げる」（**既定 ON**）＋「声の種類」＋プリセット変更で即テスト＋「声を再選択」。設定画面に **いま使う声の identifier / name**（debug）を表示。UserDefaults キー `settings.approachSpeechVoiceStyle.v10`（v9／旧キーは移行／掃除）
-5. 読み上げテストは毎回新規 `AVSpeechUtterance`・coalesce 状態クリアで **完全 bypass**
-6. **フォアグラウンドの確実な経路**: `willPresent` **と** 進入時 `LocationMonitor` の両方から読む（同一文＋同一スタイルは約2秒 coalesce）。通知音（`piroriron.caf` 実長 0.69s）が鳴り止んでから約1.75秒空けて読む（遅延 2.44s＝旧 4.19s の半分系）。毎回 `AVAudioSession`（`.playback` / `.spokenAudio` / `.duckOthers`）を再 active
-7. **通知タップ後**（`didReceive`）でも前面復帰後に読む（BG で声が出なかった場合の確実な経路）
-8. **バックグラウンド（ホーム退避・画面オフ）**: 進入検知で短く起きた枠内に通知投稿→遅延→`AVSpeech`。`UIBackgroundModes` に **`audio`（接近読み上げ用・常時再生ではない）** と `location`。`beginBackgroundTask` で遅延＋発話中だけ延長。**100% 保証はしない**（Focus／節電等で無音になり得る）
-9. **ロック画面**: 進入直後に発話開始できれば聞こえることがあるが保証外。無理なら **通知音＋文字**、タップ後は前面で読む
-10. 使える声は **iOS／端末依存**。クラウド TTS・独自音声ファイル大量同梱はしない
-11. `japaneseVoices()` は声カタログ参照のみのため `nonisolated`（`SpeechVoiceStyle.availableStyles` から Swift 6 厳密 concurrency で呼べる）
-12. ビルド識別: `build: stage5-speech-11`
+1. `ApproachSpeechSynthesizer` で「忘れていたでしょう？○○予定ですよ！」。**録音があれば**「忘れていたでしょう」は `AVAudioPlayer`、用事は `AVSpeechSynthesizer`。無ければ全文 TTS
+2. `PhraseRecordingStore`：Documents の `approach-intro-phrase.m4a`。設定で録音／差し替え／削除／プレビュー。端末内のみ
+3. `speechVoices()` から `ja`／`ja-JP` を列挙。`resolveAllPresetVoices()` で3プリセットに **必ず異なる identifier** を排他割当。若い女性＝Premium → Enhanced → Siri 女性 → O-ren…／標準＝Kyoko compact／低め＝Hattori／男性／Eloquence 男性寄り
+4. 端末に ja が3未満のときだけ pitch/rate を極端に変え、テスト文の冒頭にプリセット名を読んで差を明示（録音ありのときは冒頭プリセット名なし）
+5. 設定「接近時に読み上げる」（**既定 ON**）＋録音 UI＋「声の種類」＋プリセット変更で即テスト＋「声を再選択」
+6. 読み上げテストは毎回 coalesce **完全 bypass**。録音があれば録音→用事 TTS
+7. **フォアグラウンドの確実な経路**: `willPresent` **と** 進入時 `LocationMonitor` の両方から読む（同一文＋同一スタイルは約2秒 coalesce）。通知音クリアランス **2.44s**（speech-11 維持）。毎回 `AVAudioSession` を再 active
+8. **通知タップ後**（`didReceive`）でも前面復帰後に読む
+9. **バックグラウンド**: 進入検知枠内に通知投稿→遅延→録音／`AVSpeech`。`UIBackgroundModes` に **`audio`** と `location`。**100% 保証はしない**
+10. **ロック画面**: 保証外。無理なら **通知音＋文字**、タップ後は前面で読む
+11. クラウド TTS・独自音声ファイル大量同梱はしない（ユーザー録音1件のみ端末内）
+12. ビルド識別: `build: stage5-speech-12`
 
 ## 予定編集の地図確認（stage5-editmap-1）
 
@@ -156,6 +158,7 @@ WasureteitaDeshou/WasureteitaDeshou/
 ├── Services/HomePlaceStore.swift
 ├── Services/SavedPlaceStore.swift
 ├── Services/ApproachSpeechSynthesizer.swift
+├── Services/PhraseRecordingStore.swift
 ├── Features/Settings/HomePlaceSettingsView.swift
 ├── Features/Settings/SavedPlacesSettingsView.swift
 ├── Features/Settings/SettingsView.swift

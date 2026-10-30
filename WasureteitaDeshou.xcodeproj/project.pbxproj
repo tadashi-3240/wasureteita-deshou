@@ -40,6 +40,7 @@
 		A10000000000000000000023 /* SavedPlaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* SavedPlaceStore.swift */; };
 		A10000000000000000000024 /* SavedPlacesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* SavedPlacesSettingsView.swift */; };
 		A10000000000000000000025 /* ApproachSpeechSynthesizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ApproachSpeechSynthesizer.swift */; };
+		A10000000000000000000026 /* PhraseRecordingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* PhraseRecordingStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -77,6 +78,7 @@
 		A20000000000000000000023 /* SavedPlaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPlaceStore.swift; sourceTree = "<group>"; };
 		A20000000000000000000024 /* SavedPlacesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedPlacesSettingsView.swift; sourceTree = "<group>"; };
 		A20000000000000000000025 /* ApproachSpeechSynthesizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApproachSpeechSynthesizer.swift; sourceTree = "<group>"; };
+		A20000000000000000000026 /* PhraseRecordingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhraseRecordingStore.swift; sourceTree = "<group>"; };
 		A30000000000000000000001 /* WasureteitaDeshou.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WasureteitaDeshou.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -204,6 +206,7 @@
 				A20000000000000000000019 /* ReminderNotifier.swift */,
 				A2000000000000000000001A /* LocationMonitor.swift */,
 				A20000000000000000000025 /* ApproachSpeechSynthesizer.swift */,
+				A20000000000000000000026 /* PhraseRecordingStore.swift */,
 				A20000000000000000000020 /* HomePlaceStore.swift */,
 				A20000000000000000000023 /* SavedPlaceStore.swift */,
 			);
@@ -328,6 +331,7 @@
 				A10000000000000000000019 /* ReminderNotifier.swift in Sources */,
 				A1000000000000000000001A /* LocationMonitor.swift in Sources */,
 				A10000000000000000000025 /* ApproachSpeechSynthesizer.swift in Sources */,
+				A10000000000000000000026 /* PhraseRecordingStore.swift in Sources */,
 				A1000000000000000000001B /* LocationNotifyPermissionView.swift in Sources */,
 				A1000000000000000000001F /* HomePlace.swift in Sources */,
 				A10000000000000000000020 /* HomePlaceStore.swift in Sources */,

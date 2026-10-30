@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import UserNotifications
 
@@ -7,15 +8,17 @@ struct SettingsView: View {
     @EnvironmentObject private var reminderStore: ReminderStore
     @EnvironmentObject private var homeStore: HomePlaceStore
     @EnvironmentObject private var savedPlaceStore: SavedPlaceStore
+    @ObservedObject private var phraseRecording = PhraseRecordingStore.shared
 
     @State private var testNotifyMessage: String?
     @State private var notificationAuthStatus: UNAuthorizationStatus = .notDetermined
+    @State private var confirmDeletePhrase = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-11")
+                    Text("build: stage5-speech-12")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -210,10 +213,73 @@ struct SettingsView: View {
                     Toggle("接近時に読み上げる", isOn: $notifySettings.speechEnabled)
                         .font(.system(size: 18, weight: .semibold))
 
-                    Text("接近通知の音のあと「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン・自然な若い女性声）。アプリ前面では確実に読みます。ホーム退避・画面オフでも、場所への進入を検知できた直後なら読み上げを試みます（バックグラウンドの audio は接近読み上げのためだけ。常時再生アプリではありません）。ロック画面では端末状態により声が出ないことがあり、そのときは通知音と文字が基本です。通知をタップして前面に戻ったあとは確実に読みます。")
+                    Text("接近通知の音のあと「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン）。録音があれば「忘れていたでしょう」は自分の声、用事は端末の読み上げです。録音が無ければ全文を読み上げます。アプリ前面では確実に読みます。ホーム退避・画面オフでも、場所への進入を検知できた直後なら読み上げを試みます。ロック画面では端末状態により声が出ないことがあり、そのときは通知音と文字が基本です。")
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
+
+                    LabeledContent("「忘れていたでしょう」録音") {
+                        Text(phraseRecording.hasRecording ? "あり" : "なし")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(phraseRecording.hasRecording ? Color.secondary : Color.orange)
+                    }
+
+                    LabeledContent("マイク") {
+                        Text(micStatusLabel)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(micStatusColor)
+                    }
+
+                    if phraseRecording.micAuthorization == .denied {
+                        Text("マイクが拒否されています。iPhone設定→忘れていたでしょう→マイク、でオンにしてください。")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
+
+                    if phraseRecording.isRecording {
+                        Button("録音を止めて保存") {
+                            phraseRecording.stopRecording()
+                            testNotifyMessage = phraseRecording.statusMessage
+                        }
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.red)
+                    } else {
+                        Button(phraseRecording.hasRecording ? "差し替えて録音" : "「忘れていたでしょう」を録音") {
+                            Task {
+                                await phraseRecording.startRecording()
+                                testNotifyMessage = phraseRecording.statusMessage
+                            }
+                        }
+                        .font(.system(size: 17, weight: .semibold))
+                    }
+
+                    Button(phraseRecording.isPlayingPreview ? "再生を止める" : "録音を再生") {
+                        if phraseRecording.isPlayingPreview {
+                            phraseRecording.stopPreview()
+                            testNotifyMessage = "再生を止めました。"
+                        } else {
+                            phraseRecording.playPreview()
+                            testNotifyMessage = phraseRecording.statusMessage
+                        }
+                    }
+                    .font(.system(size: 17))
+                    .disabled(!phraseRecording.hasRecording || phraseRecording.isRecording)
+
+                    Button("録音を削除", role: .destructive) {
+                        confirmDeletePhrase = true
+                    }
+                    .font(.system(size: 17))
+                    .disabled(!phraseRecording.hasRecording || phraseRecording.isRecording)
+
+                    if let phraseMsg = phraseRecording.statusMessage {
+                        Text(phraseMsg)
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text("録音は端末内のみです。接近時は通知音のあと（2.44秒）に録音を再生し、続けて用事を読み上げます。")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
 
                     if SpeechVoiceStyle.availableStyles.isEmpty {
                         Text("この端末では日本語の読み上げ声が見つかりません。")
@@ -273,7 +339,7 @@ struct SettingsView: View {
                     Text("音声読み上げ")
                         .font(.system(size: 16, weight: .semibold))
                 } footer: {
-                    Text("クラウド音声合成は使いません。端末の AVSpeechSynthesizer（日本語）のみです。使える声は iOS／端末依存です（設定→アクセシビリティ→読み上げコンテンツ で Enhanced／Premium を入れると自然になります）。バックグラウンドの audio モードは接近時の短い読み上げ継続用で、音楽の常時再生や別用途の偽装ではありません。")
+                    Text("「忘れていたでしょう」は録音があれば自分の声、用事は端末の AVSpeechSynthesizer（日本語）です。クラウド音声合成は使いません。使える声は iOS／端末依存です。バックグラウンドの audio モードは接近時の短い読み上げ継続用です。")
                         .font(.system(size: 14))
                 }
             }
@@ -281,8 +347,37 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.large)
             .onAppear {
                 locationMonitor.refreshAuthorizationStatus()
+                phraseRecording.refreshHasRecording()
+                phraseRecording.refreshMicAuthorization()
                 Task { await refreshNotificationAuthStatus() }
             }
+            .confirmationDialog("録音を削除しますか？", isPresented: $confirmDeletePhrase, titleVisibility: .visible) {
+                Button("削除", role: .destructive) {
+                    phraseRecording.deleteRecording()
+                    testNotifyMessage = phraseRecording.statusMessage
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("接近時は端末の読み上げ声に戻ります。")
+            }
+        }
+    }
+
+    private var micStatusLabel: String {
+        switch phraseRecording.micAuthorization {
+        case .granted: return "許可"
+        case .denied: return "拒否"
+        case .undetermined: return "未設定"
+        @unknown default: return "不明"
+        }
+    }
+
+    private var micStatusColor: Color {
+        switch phraseRecording.micAuthorization {
+        case .granted: return .secondary
+        case .denied: return .red
+        case .undetermined: return .orange
+        @unknown default: return .secondary
         }
     }
 
