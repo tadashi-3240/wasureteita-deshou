@@ -15,7 +15,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-places-4")
+                    Text("build: stage5-speech-11")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
