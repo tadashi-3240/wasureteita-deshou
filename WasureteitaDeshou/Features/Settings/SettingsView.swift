@@ -18,9 +18,112 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-13")
+                    Text("build: stage5-speech-14")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
+                }
+
+                // 設定タブを開いた直後に見える位置。List 行に1ボタンずつ置き、ネスト VStack で潰れないようにする。
+                Section {
+                    HStack {
+                        Text("録音")
+                            .font(.system(size: 17, weight: .semibold))
+                        Spacer()
+                        Text(phraseRecording.hasRecording ? "あり" : "なし")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(phraseRecording.hasRecording ? Color.secondary : Color.orange)
+                    }
+
+                    HStack {
+                        Text("マイク")
+                            .font(.system(size: 17, weight: .semibold))
+                        Spacer()
+                        Text(micStatusLabel)
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(micStatusColor)
+                    }
+
+                    if phraseRecording.micAuthorization == .denied {
+                        Text("マイクが拒否されています。iPhone設定→忘れていたでしょう→マイク、でオンにしてください。")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
+
+                    if phraseRecording.isRecording {
+                        PhraseRecordingLargeButton(
+                            title: "停止",
+                            systemImage: "stop.circle.fill",
+                            tint: .red,
+                            filled: true
+                        ) {
+                            phraseRecording.stopRecording()
+                            testNotifyMessage = phraseRecording.statusMessage
+                        }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                        .listRowSeparator(.hidden)
+                    } else {
+                        PhraseRecordingLargeButton(
+                            title: phraseRecording.hasRecording ? "差し替え（再録音）" : "録音開始",
+                            systemImage: "mic.circle.fill",
+                            tint: Color("BrandAccent"),
+                            filled: true
+                        ) {
+                            Task {
+                                await phraseRecording.startRecording()
+                                testNotifyMessage = phraseRecording.statusMessage
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                        .listRowSeparator(.hidden)
+
+                        PhraseRecordingLargeButton(
+                            title: phraseRecording.isPlayingPreview ? "再生を止める" : "再生",
+                            systemImage: phraseRecording.isPlayingPreview ? "stop.circle.fill" : "play.circle.fill",
+                            tint: phraseRecording.hasRecording ? Color("BrandAccent") : .secondary,
+                            filled: phraseRecording.hasRecording
+                        ) {
+                            guard phraseRecording.hasRecording else {
+                                testNotifyMessage = "まだ録音がありません。先に「録音開始」を押してください。"
+                                return
+                            }
+                            if phraseRecording.isPlayingPreview {
+                                phraseRecording.stopPreview()
+                                testNotifyMessage = "再生を止めました。"
+                            } else {
+                                phraseRecording.playPreview()
+                                testNotifyMessage = phraseRecording.statusMessage
+                            }
+                        }
+                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                        .listRowSeparator(.hidden)
+                        .disabled(!phraseRecording.hasRecording)
+                        .opacity(phraseRecording.hasRecording ? 1 : 0.45)
+
+                        if phraseRecording.hasRecording {
+                            PhraseRecordingLargeButton(
+                                title: "削除",
+                                systemImage: "trash.circle.fill",
+                                tint: .red,
+                                filled: false
+                            ) {
+                                confirmDeletePhrase = true
+                            }
+                            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                            .listRowSeparator(.hidden)
+                        }
+                    }
+
+                    if let phraseMsg = phraseRecording.statusMessage {
+                        Text(phraseMsg)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("「忘れていたでしょう」録音")
+                        .font(.system(size: 16, weight: .semibold))
+                } footer: {
+                    Text("設定タブのいちばん上付近です。大きいボタンで録音開始・停止・再生・差し替え・削除できます。録音は端末内のみ。接近時は通知音のあと（2.44秒）にこの声を再生し、続けて用事を読み上げます。")
+                        .font(.system(size: 14))
                 }
 
                 Section {
@@ -213,102 +316,10 @@ struct SettingsView: View {
                     Toggle("接近時に読み上げる", isOn: $notifySettings.speechEnabled)
                         .font(.system(size: 18, weight: .semibold))
 
-                    Text("接近通知の音のあと「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン）。録音があれば「忘れていたでしょう」は自分の声、用事は端末の読み上げです。録音が無ければ全文を読み上げます。アプリ前面では確実に読みます。ホーム退避・画面オフでも、場所への進入を検知できた直後なら読み上げを試みます。ロック画面では端末状態により声が出ないことがあり、そのときは通知音と文字が基本です。")
+                    Text("接近通知の音のあと「忘れていたでしょう？○○予定ですよ！」を読み上げます（既定はオン）。「忘れていたでしょう」の録音は、この画面いちばん上付近の専用セクションで操作します。録音があれば自分の声＋用事 TTS、無ければ全文 TTS。アプリ前面では確実に読みます。ホーム退避・画面オフでも進入検知直後なら試みます。ロック中は端末次第です。")
                         .font(.system(size: 15))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
-
-                    LabeledContent("「忘れていたでしょう」録音") {
-                        Text(phraseRecording.hasRecording ? "あり" : "なし")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(phraseRecording.hasRecording ? Color.secondary : Color.orange)
-                    }
-
-                    LabeledContent("マイク") {
-                        Text(micStatusLabel)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(micStatusColor)
-                    }
-
-                    if phraseRecording.micAuthorization == .denied {
-                        Text("マイクが拒否されています。iPhone設定→忘れていたでしょう→マイク、でオンにしてください。")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.orange)
-                    }
-
-                    VStack(spacing: 12) {
-                        if phraseRecording.isRecording {
-                            PhraseRecordingLargeButton(
-                                title: "停止",
-                                systemImage: "stop.circle.fill",
-                                tint: .red,
-                                filled: true
-                            ) {
-                                phraseRecording.stopRecording()
-                                testNotifyMessage = phraseRecording.statusMessage
-                            }
-                        } else if !phraseRecording.hasRecording {
-                            PhraseRecordingLargeButton(
-                                title: "録音開始",
-                                systemImage: "mic.circle.fill",
-                                tint: Color("BrandAccent"),
-                                filled: true
-                            ) {
-                                Task {
-                                    await phraseRecording.startRecording()
-                                    testNotifyMessage = phraseRecording.statusMessage
-                                }
-                            }
-                        } else {
-                            PhraseRecordingLargeButton(
-                                title: phraseRecording.isPlayingPreview ? "再生を止める" : "再生",
-                                systemImage: phraseRecording.isPlayingPreview ? "stop.circle.fill" : "play.circle.fill",
-                                tint: Color("BrandAccent"),
-                                filled: true
-                            ) {
-                                if phraseRecording.isPlayingPreview {
-                                    phraseRecording.stopPreview()
-                                    testNotifyMessage = "再生を止めました。"
-                                } else {
-                                    phraseRecording.playPreview()
-                                    testNotifyMessage = phraseRecording.statusMessage
-                                }
-                            }
-
-                            PhraseRecordingLargeButton(
-                                title: "差し替え",
-                                systemImage: "arrow.triangle.2.circlepath",
-                                tint: .primary,
-                                filled: false
-                            ) {
-                                Task {
-                                    await phraseRecording.startRecording()
-                                    testNotifyMessage = phraseRecording.statusMessage
-                                }
-                            }
-
-                            PhraseRecordingLargeButton(
-                                title: "削除",
-                                systemImage: "trash.circle.fill",
-                                tint: .red,
-                                filled: false
-                            ) {
-                                confirmDeletePhrase = true
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-
-                    if let phraseMsg = phraseRecording.statusMessage {
-                        Text(phraseMsg)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text("大きいボタンで操作します。録音は端末内のみです。接近時は通知音のあと（2.44秒）に録音を再生し、続けて用事を読み上げます。")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
 
                     if SpeechVoiceStyle.availableStyles.isEmpty {
                         Text("この端末では日本語の読み上げ声が見つかりません。")
@@ -496,7 +507,7 @@ struct SettingsView: View {
     }
 }
 
-/// 設定の録音操作用。押しやすい大きなボタン。
+/// 設定の録音操作用。List 行1つ＝ボタン1つ。押しやすい高さ。
 private struct PhraseRecordingLargeButton: View {
     let title: String
     let systemImage: String
@@ -507,19 +518,19 @@ private struct PhraseRecordingLargeButton: View {
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.system(size: 22, weight: .bold))
-                .frame(maxWidth: .infinity, minHeight: 64)
+                .font(.system(size: 24, weight: .bold))
+                .frame(maxWidth: .infinity, minHeight: 72)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .foregroundStyle(filled ? Color.white : tint)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(filled ? tint : Color.clear)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(tint, lineWidth: filled ? 0 : 2)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(tint, lineWidth: filled ? 0 : 3)
         )
         .accessibilityLabel(title)
     }
