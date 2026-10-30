@@ -18,7 +18,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-12")
+                    Text("build: stage5-speech-13")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -236,48 +236,77 @@ struct SettingsView: View {
                             .foregroundStyle(.orange)
                     }
 
-                    if phraseRecording.isRecording {
-                        Button("録音を止めて保存") {
-                            phraseRecording.stopRecording()
-                            testNotifyMessage = phraseRecording.statusMessage
-                        }
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.red)
-                    } else {
-                        Button(phraseRecording.hasRecording ? "差し替えて録音" : "「忘れていたでしょう」を録音") {
-                            Task {
-                                await phraseRecording.startRecording()
+                    VStack(spacing: 12) {
+                        if phraseRecording.isRecording {
+                            PhraseRecordingLargeButton(
+                                title: "停止",
+                                systemImage: "stop.circle.fill",
+                                tint: .red,
+                                filled: true
+                            ) {
+                                phraseRecording.stopRecording()
                                 testNotifyMessage = phraseRecording.statusMessage
                             }
-                        }
-                        .font(.system(size: 17, weight: .semibold))
-                    }
-
-                    Button(phraseRecording.isPlayingPreview ? "再生を止める" : "録音を再生") {
-                        if phraseRecording.isPlayingPreview {
-                            phraseRecording.stopPreview()
-                            testNotifyMessage = "再生を止めました。"
+                        } else if !phraseRecording.hasRecording {
+                            PhraseRecordingLargeButton(
+                                title: "録音開始",
+                                systemImage: "mic.circle.fill",
+                                tint: Color("BrandAccent"),
+                                filled: true
+                            ) {
+                                Task {
+                                    await phraseRecording.startRecording()
+                                    testNotifyMessage = phraseRecording.statusMessage
+                                }
+                            }
                         } else {
-                            phraseRecording.playPreview()
-                            testNotifyMessage = phraseRecording.statusMessage
+                            PhraseRecordingLargeButton(
+                                title: phraseRecording.isPlayingPreview ? "再生を止める" : "再生",
+                                systemImage: phraseRecording.isPlayingPreview ? "stop.circle.fill" : "play.circle.fill",
+                                tint: Color("BrandAccent"),
+                                filled: true
+                            ) {
+                                if phraseRecording.isPlayingPreview {
+                                    phraseRecording.stopPreview()
+                                    testNotifyMessage = "再生を止めました。"
+                                } else {
+                                    phraseRecording.playPreview()
+                                    testNotifyMessage = phraseRecording.statusMessage
+                                }
+                            }
+
+                            PhraseRecordingLargeButton(
+                                title: "差し替え",
+                                systemImage: "arrow.triangle.2.circlepath",
+                                tint: .primary,
+                                filled: false
+                            ) {
+                                Task {
+                                    await phraseRecording.startRecording()
+                                    testNotifyMessage = phraseRecording.statusMessage
+                                }
+                            }
+
+                            PhraseRecordingLargeButton(
+                                title: "削除",
+                                systemImage: "trash.circle.fill",
+                                tint: .red,
+                                filled: false
+                            ) {
+                                confirmDeletePhrase = true
+                            }
                         }
                     }
-                    .font(.system(size: 17))
-                    .disabled(!phraseRecording.hasRecording || phraseRecording.isRecording)
-
-                    Button("録音を削除", role: .destructive) {
-                        confirmDeletePhrase = true
-                    }
-                    .font(.system(size: 17))
-                    .disabled(!phraseRecording.hasRecording || phraseRecording.isRecording)
+                    .padding(.vertical, 8)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
                     if let phraseMsg = phraseRecording.statusMessage {
                         Text(phraseMsg)
-                            .font(.system(size: 14))
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
 
-                    Text("録音は端末内のみです。接近時は通知音のあと（2.44秒）に録音を再生し、続けて用事を読み上げます。")
+                    Text("大きいボタンで操作します。録音は端末内のみです。接近時は通知音のあと（2.44秒）に録音を再生し、続けて用事を読み上げます。")
                         .font(.system(size: 14))
                         .foregroundStyle(.secondary)
 
@@ -464,6 +493,35 @@ struct SettingsView: View {
         case .notDetermined: return .orange
         @unknown default: return .secondary
         }
+    }
+}
+
+/// 設定の録音操作用。押しやすい大きなボタン。
+private struct PhraseRecordingLargeButton: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    let filled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 22, weight: .bold))
+                .frame(maxWidth: .infinity, minHeight: 64)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(filled ? Color.white : tint)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(filled ? tint : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(tint, lineWidth: filled ? 0 : 2)
+        )
+        .accessibilityLabel(title)
     }
 }
 
