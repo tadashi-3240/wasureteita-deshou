@@ -30,6 +30,7 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
 
     private let synthesizer = AVSpeechSynthesizer()
     private var phrasePlayer: AVAudioPlayer?
+    private var chimePlayer: AVAudioPlayer?
     private var pendingAfterPhraseTTS: String?
     private var pendingSpeakTask: Task<Void, Never>?
     private var lastSpokenText: String?
@@ -60,10 +61,45 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
         pendingAfterPhraseTTS = nil
         phrasePlayer?.stop()
         phrasePlayer = nil
+        chimePlayer?.stop()
+        chimePlayer = nil
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
         endSpeakBackgroundTask()
+    }
+
+    /// 設定の音量スライダー用。アプリ内チャイムを現在音量で鳴らし、続けて読み上げテスト。
+    /// システム通知音ではなく `AVAudioPlayer` 経路（音量調整の対象）を確認する。
+    func playVolumeTest() {
+        stopAllAudio()
+        PhraseRecordingStore.shared.stopPreview()
+        prepareAudioSession()
+        guard let url = Bundle.main.url(forResource: "piroriron", withExtension: "caf") else {
+            speakTest()
+            return
+        }
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.delegate = self
+            player.volume = AppNotifySettings.alertVolumeStored
+            player.prepareToPlay()
+            chimePlayer = player
+            guard player.play() else {
+                chimePlayer = nil
+                speakTest()
+                return
+            }
+            let clearance = Self.notificationSoundClearance
+            pendingSpeakTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(clearance * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                self.chimePlayer = nil
+                self.speakTest()
+            }
+        } catch {
+            speakTest()
+        }
     }
 
     /// 端末に入っている日本語（`ja` / `ja-JP`）の声。無いものはここに出ない。
@@ -142,6 +178,8 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
         pendingSpeakTask?.cancel()
         phrasePlayer?.stop()
         phrasePlayer = nil
+        chimePlayer?.stop()
+        chimePlayer = nil
         pendingAfterPhraseTTS = nil
         // coalesce を完全に無効化（前回と同文でも必ず再生）。
         lastSpokenText = nil
@@ -175,6 +213,8 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
         pendingSpeakTask?.cancel()
         phrasePlayer?.stop()
         phrasePlayer = nil
+        chimePlayer?.stop()
+        chimePlayer = nil
         pendingAfterPhraseTTS = nil
         beginSpeakBackgroundTask()
         pendingSpeakTask = Task { @MainActor in
@@ -203,6 +243,8 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
         pendingSpeakTask?.cancel()
         phrasePlayer?.stop()
         phrasePlayer = nil
+        chimePlayer?.stop()
+        chimePlayer = nil
         pendingAfterPhraseTTS = nil
         beginSpeakBackgroundTask()
         pendingSpeakTask = Task { @MainActor in
@@ -252,6 +294,7 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
         do {
             let player = try AVAudioPlayer(contentsOf: url)
             player.delegate = self
+            player.volume = AppNotifySettings.alertVolumeStored
             player.prepareToPlay()
             pendingAfterPhraseTTS = taskSuffix
             phrasePlayer = player
@@ -279,6 +322,7 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
         utterance.voice = assignment.voice
         utterance.rate = style.speechRate(collapsed: assignment.presetsCollapsed)
         utterance.pitchMultiplier = style.pitchMultiplier(collapsed: assignment.presetsCollapsed)
+        utterance.volume = AppNotifySettings.alertVolumeStored
         synthesizer.speak(utterance)
         // 発話終了／キャンセルで BG タスクを閉じる（delegate）。
     }
@@ -580,6 +624,10 @@ final class ApproachSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate, AV
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
+            if self.chimePlayer === player {
+                self.chimePlayer = nil
+                return
+            }
             guard self.phrasePlayer === player else { return }
             self.phrasePlayer = nil
             let suffix = self.pendingAfterPhraseTTS
