@@ -11,7 +11,7 @@ struct HistoryView: View {
                     ContentUnavailableView {
                         Label("履歴はまだありません", systemImage: "clock.arrow.circlepath")
                     } description: {
-                        Text("店舗付近に約30秒滞在して自動解除されたものや、予定一覧で完了したものがここに残ります。")
+                        Text("店舗付近の到着圏に入って自動解除されたものや、予定一覧で完了したものがここに残ります。")
                             .font(.system(size: 18))
                             .multilineTextAlignment(.center)
                     }
