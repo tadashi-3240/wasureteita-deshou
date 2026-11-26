@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 /// 通知距離の全体デフォルト（新規予定に適用）。予定ごとの上書きも Reminder に持つ。
-/// 接近時の音声読み上げ ON/OFF・声の種類もここ（既定は ON／自然な若い女性声）。
+/// 接近時の音声読み上げ ON/OFF・声の種類・アプリ内再生音量もここ（既定は ON／自然な若い女性声／最大）。
 @MainActor
 final class AppNotifySettings: ObservableObject {
     private enum Keys {
@@ -12,10 +12,16 @@ final class AppNotifySettings: ObservableObject {
         static let speechVoiceStyle = "settings.approachSpeechVoiceStyle.v10"
         static let speechVoiceStyleLegacyV9 = "settings.approachSpeechVoiceStyle.v9"
         static let speechVoiceStyleLegacy = "settings.approachSpeechVoiceStyle"
+        static let alertVolume = "settings.alertPlaybackVolume"
     }
 
     /// 純粋な定数・関数。Sendable モデルからも安全に呼べるよう MainActor から外す。
     nonisolated static let allowedDistances = [300, 500, 1000]
+
+    /// アプリ内再生音量の既定（AVAudioPlayer / AVSpeech の最大＝従来どおりの聞こえ方）。
+    nonisolated static let defaultAlertVolume: Float = 1.0
+    nonisolated static let minAlertVolume: Float = 0.1
+    nonisolated static let maxAlertVolume: Float = 1.0
 
     /// AppDelegate など MainActor 外からも読める既定（キー未設定＝ON）。
     nonisolated static var isSpeechEnabledStored: Bool {
@@ -23,6 +29,20 @@ final class AppNotifySettings: ObservableObject {
             return true
         }
         return UserDefaults.standard.bool(forKey: Keys.speechEnabled)
+    }
+
+    /// アプリ内チャイム・録音・読み上げの音量（0.1…1.0）。未設定＝最大。
+    /// システム通知音（`UNNotificationSound`）は着信音量に従い、ここには含めない。
+    nonisolated static var alertVolumeStored: Float {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: Keys.alertVolume) != nil else {
+            return defaultAlertVolume
+        }
+        return clampVolume(Float(defaults.double(forKey: Keys.alertVolume)))
+    }
+
+    nonisolated static func clampVolume(_ value: Float) -> Float {
+        min(maxAlertVolume, max(minAlertVolume, value))
     }
 
     /// 声の種類（未設定＝自然な若い女性声）。
@@ -75,11 +95,24 @@ final class AppNotifySettings: ObservableObject {
         }
     }
 
+    /// アプリ内で再生する接近チャイム・録音・読み上げの音量（UserDefaults 永続化）。
+    @Published var alertVolume: Float {
+        didSet {
+            let clamped = Self.clampVolume(alertVolume)
+            if clamped != alertVolume {
+                alertVolume = clamped
+                return
+            }
+            UserDefaults.standard.set(Double(clamped), forKey: Keys.alertVolume)
+        }
+    }
+
     init() {
         let stored = UserDefaults.standard.integer(forKey: Keys.defaultDistance)
         defaultNotifyDistanceMeters = stored == 0 ? 1000 : Self.clamp(stored)
         speechEnabled = Self.isSpeechEnabledStored
         speechVoiceStyle = Self.speechVoiceStyleStored
+        alertVolume = Self.alertVolumeStored
     }
 
     /// 既定の「自然な若い女性声」へ戻し、即テスト再生できるよう UserDefaults も同期。

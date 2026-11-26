@@ -18,7 +18,7 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("build: stage5-speech-14")
+                    Text("build: alert-volume-1")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -310,6 +310,38 @@ struct SettingsView: View {
                 } header: {
                     Text("自動解除（滞在）")
                         .font(.system(size: 16, weight: .semibold))
+                }
+
+                Section {
+                    HStack {
+                        Text("音量")
+                            .font(.system(size: 18, weight: .semibold))
+                        Spacer()
+                        Text("\(Int((notifySettings.alertVolume * 100).rounded()))%")
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    Slider(
+                        value: $notifySettings.alertVolume,
+                        in: AppNotifySettings.minAlertVolume...AppNotifySettings.maxAlertVolume,
+                        step: 0.05
+                    )
+                    .tint(Color("BrandAccent"))
+                    .accessibilityLabel("読み上げとアプリ内チャイムの音量")
+
+                    Button("音量をテスト") {
+                        ApproachSpeechSynthesizer.shared.playVolumeTest()
+                        testNotifyMessage = "いまの音量でチャイムと読み上げを再生しました。"
+                    }
+                    .font(.system(size: 17, weight: .semibold))
+                } header: {
+                    Text("通知・読み上げの音量")
+                        .font(.system(size: 16, weight: .semibold))
+                } footer: {
+                    Text("アプリ内で再生するチャイム・録音・読み上げの音量です（起動後も覚えます。既定は最大）。ロック画面などに出るシステムの通知音は、iPhoneの着信／通知音量に従い、アプリからは変えられません。")
+                        .font(.system(size: 14))
                 }
 
                 Section {

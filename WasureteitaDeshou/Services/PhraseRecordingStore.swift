@@ -144,6 +144,7 @@ final class PhraseRecordingStore: NSObject, ObservableObject, AVAudioRecorderDel
             try session.setActive(true, options: [])
             let player = try AVAudioPlayer(contentsOf: Self.fileURL)
             player.delegate = self
+            player.volume = AppNotifySettings.alertVolumeStored
             player.prepareToPlay()
             guard player.play() else {
                 statusMessage = "再生できませんでした。"
