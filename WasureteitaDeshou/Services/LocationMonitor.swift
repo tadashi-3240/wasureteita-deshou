@@ -2,11 +2,11 @@ import CoreLocation
 import Foundation
 import Combine
 
-/// 店舗付近の滞在判定（目安 50〜100m・約1分）。領域監視＋必要時のみ限定的な位置更新。
+/// 店舗付近の滞在判定（目安 50〜100m・約30秒）。領域監視＋必要時のみ限定的な位置更新。
 enum DwellConfig {
     /// 50〜100m の目安中央寄り
     static let radiusMeters: CLLocationDistance = 75
-    static let requiredSeconds: TimeInterval = 60
+    static let requiredSeconds: TimeInterval = 30
     static let identifierPrefix = "dwell."
     /// 内側判定の余裕（GPS 誤差）
     static let insideSlackFactor: CLLocationDistance = 1.5
@@ -29,9 +29,11 @@ final class LocationMonitor: NSObject, ObservableObject {
     private var notifiedWhileInside: Set<String> = []
     /// 滞在領域に入った時刻（reminder UUID 文字列）
     private var dwellEnteredAt: [String: Date] = [:]
+    /// 静止中でも `requiredSeconds` 後に再評価するための遅延タスク（reminder UUID 文字列）
+    private var dwellReevaluateWorkItems: [String: DispatchWorkItem] = [:]
     private var isUpdatingForDwell = false
 
-    /// 約1分滞在で自動解除するときのコールバック（ReminderStore が履歴へ）
+    /// 約30秒滞在で自動解除するときのコールバック（ReminderStore が履歴へ）
     var onDwellAutoClear: ((UUID) -> Void)?
 
     private enum PersistKeys {
@@ -204,9 +206,14 @@ final class LocationMonitor: NSObject, ObservableObject {
     private func handleDwellEnter(reminderKey: String) {
         guard reminderLookup[reminderKey] != nil else { return }
         if dwellEnteredAt[reminderKey] == nil {
-            dwellEnteredAt[reminderKey] = Date()
+            let enteredAt = Date()
+            dwellEnteredAt[reminderKey] = enteredAt
             persistDwellEnteredAt()
             dwellTrackingCount = dwellEnteredAt.count
+            scheduleDwellReevaluate(reminderKey: reminderKey, enteredAt: enteredAt)
+        } else if let enteredAt = dwellEnteredAt[reminderKey] {
+            // 既存計測の再進入でもタイマーが無い場合に備え直す
+            scheduleDwellReevaluate(reminderKey: reminderKey, enteredAt: enteredAt)
         }
         startDwellLocationUpdatesIfNeeded()
         evaluateDwell(at: manager.location)
@@ -218,9 +225,34 @@ final class LocationMonitor: NSObject, ObservableObject {
     }
 
     private func clearDwellTracking(reminderKey: String) {
+        cancelDwellReevaluate(reminderKey: reminderKey)
         guard dwellEnteredAt.removeValue(forKey: reminderKey) != nil else { return }
         persistDwellEnteredAt()
         dwellTrackingCount = dwellEnteredAt.count
+    }
+
+    /// 位置更新が止まっても `requiredSeconds` 後に必ず再評価する。
+    /// 期限超過後に GPS 一時外れでクリアできなかった場合は短間隔で再試行する。
+    private func scheduleDwellReevaluate(reminderKey: String, enteredAt: Date) {
+        cancelDwellReevaluate(reminderKey: reminderKey)
+        let remaining = DwellConfig.requiredSeconds - Date().timeIntervalSince(enteredAt)
+        let delay: TimeInterval = remaining > 0 ? remaining : 5
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.dwellReevaluateWorkItems.removeValue(forKey: reminderKey)
+            guard let stillEnteredAt = self.dwellEnteredAt[reminderKey] else { return }
+            self.evaluateDwell(at: self.manager.location)
+            // まだ計測中（GPS 外側判定など）なら再スケジュール
+            if self.dwellEnteredAt[reminderKey] != nil {
+                self.scheduleDwellReevaluate(reminderKey: reminderKey, enteredAt: stillEnteredAt)
+            }
+        }
+        dwellReevaluateWorkItems[reminderKey] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cancelDwellReevaluate(reminderKey: String) {
+        dwellReevaluateWorkItems.removeValue(forKey: reminderKey)?.cancel()
     }
 
     private func clearNotifiedWhileInside(_ key: String) {
@@ -276,6 +308,8 @@ final class LocationMonitor: NSObject, ObservableObject {
         isUpdatingForDwell = true
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = 25
+        // 滞在計測中は静止しても更新を止めない（タイマー再評価と併用）
+        manager.pausesLocationUpdatesAutomatically = false
         // Always 許可時のみ BG 更新。When In Use でも FG なら更新される。
         if manager.authorizationStatus == .authorizedAlways {
             manager.allowsBackgroundLocationUpdates = true
@@ -289,6 +323,7 @@ final class LocationMonitor: NSObject, ObservableObject {
         isUpdatingForDwell = false
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
+        manager.pausesLocationUpdatesAutomatically = true
     }
 
     private func persistDwellEnteredAt() {
@@ -303,6 +338,9 @@ final class LocationMonitor: NSObject, ObservableObject {
         }
         dwellEnteredAt = raw.mapValues { Date(timeIntervalSince1970: $0) }
         if !dwellEnteredAt.isEmpty {
+            for (reminderKey, enteredAt) in dwellEnteredAt {
+                scheduleDwellReevaluate(reminderKey: reminderKey, enteredAt: enteredAt)
+            }
             startDwellLocationUpdatesIfNeeded()
         }
     }
