@@ -2,24 +2,23 @@ import CoreLocation
 import Foundation
 import Combine
 
-/// 店舗付近の滞在判定（目安 50〜100m・約1分）。領域監視＋必要時のみ限定的な位置更新。
+/// 店舗付近の到着判定（目安 50〜100m）。領域進入または同等の距離で即時自動解除。
 enum DwellConfig {
     /// 50〜100m の目安中央寄り
     static let radiusMeters: CLLocationDistance = 75
-    static let requiredSeconds: TimeInterval = 60
     static let identifierPrefix = "dwell."
     /// 内側判定の余裕（GPS 誤差）
     static let insideSlackFactor: CLLocationDistance = 1.5
 }
 
-/// 予定の円形ジオフェンス監視。接近通知＋滞在による自動解除。
+/// 予定の円形ジオフェンス監視。接近通知＋到着による自動解除。
 @MainActor
 final class LocationMonitor: NSObject, ObservableObject {
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
     @Published private(set) var lastErrorMessage: String?
     /// 現在システムに渡している監視領域の件数
     @Published private(set) var monitoredRegionCount: Int = 0
-    /// 店舗付近に滞在計測中の件数（デバッグ／設定表示用）
+    /// 接近圏内で到着距離を監視中の件数（デバッグ／設定表示用）
     @Published private(set) var dwellTrackingCount: Int = 0
 
     private let manager = CLLocationManager()
@@ -27,16 +26,18 @@ final class LocationMonitor: NSObject, ObservableObject {
     private var reminderLookup: [String: Reminder] = [:]
     /// 同じ接近領域にいるあいだの連打を防ぐ（退出でクリア）。投稿前に同期的にセット。
     private var notifiedWhileInside: Set<String> = []
-    /// 滞在領域に入った時刻（reminder UUID 文字列）
-    private var dwellEnteredAt: [String: Date] = [:]
-    private var isUpdatingForDwell = false
+    /// 接近圏内の予定（到着距離チェック用の限定 GPS を動かすキー）
+    private var approachInsideKeys: Set<String> = []
+    private var isUpdatingForArrival = false
 
-    /// 約1分滞在で自動解除するときのコールバック（ReminderStore が履歴へ）
+    /// 到着圏進入で自動解除するときのコールバック（ReminderStore が履歴へ）
     var onDwellAutoClear: ((UUID) -> Void)?
 
     private enum PersistKeys {
-        static let dwellEnteredAt = "location.dwellEnteredAt.v1"
         static let notifiedWhileInside = "location.notifiedWhileInside.v1"
+        static let approachInsideKeys = "location.approachInsideKeys.v1"
+        /// 旧 30s/60s 滞在計測。読み捨てて削除する
+        static let legacyDwellEnteredAt = "location.dwellEnteredAt.v1"
     }
 
     override init() {
@@ -44,12 +45,16 @@ final class LocationMonitor: NSObject, ObservableObject {
         super.init()
         manager.delegate = self
         manager.pausesLocationUpdatesAutomatically = true
-        // 常時 GPS は使わない。滞在計測中のみ限定的に更新する。
+        // 常時 GPS は使わない。接近圏内のみ到着距離チェック用に限定更新する。
         manager.allowsBackgroundLocationUpdates = false
-        loadDwellEnteredAt()
+        UserDefaults.standard.removeObject(forKey: PersistKeys.legacyDwellEnteredAt)
         loadNotifiedWhileInside()
+        loadApproachInsideKeys()
         refreshMonitoredCount()
-        dwellTrackingCount = dwellEnteredAt.count
+        dwellTrackingCount = approachInsideKeys.count
+        if !approachInsideKeys.isEmpty {
+            startArrivalLocationUpdatesIfNeeded()
+        }
     }
 
     func refreshAuthorizationStatus() {
@@ -80,20 +85,19 @@ final class LocationMonitor: NSObject, ObservableObject {
                 manager.stopMonitoring(for: circular)
                 let reminderKey = Self.reminderKey(fromRegionId: circular.identifier)
                 clearNotifiedWhileInside(reminderKey)
-                clearDwellTracking(reminderKey: reminderKey)
+                markApproachOutside(reminderKey: reminderKey)
             }
         }
 
-        // もう無い予定の滞在計測を落とす
-        for key in Array(dwellEnteredAt.keys) where reminderLookup[key] == nil {
-            clearDwellTracking(reminderKey: key)
+        for key in Array(approachInsideKeys) where reminderLookup[key] == nil {
+            markApproachOutside(reminderKey: key)
         }
 
         for reminder in reminders {
             startOrUpdate(reminder: reminder)
         }
         refreshMonitoredCount()
-        evaluateDwell(at: manager.location)
+        evaluateArrival(at: manager.location)
         // 領域ごとの requestState はここに寄せる（起動時の二重問い合わせを避ける）
         requestStateForAllMonitoredRegions()
     }
@@ -102,7 +106,7 @@ final class LocationMonitor: NSObject, ObservableObject {
         let key = id.uuidString
         reminderLookup.removeValue(forKey: key)
         clearNotifiedWhileInside(key)
-        clearDwellTracking(reminderKey: key)
+        markApproachOutside(reminderKey: key)
         for region in manager.monitoredRegions {
             let regionKey = Self.reminderKey(fromRegionId: region.identifier)
             if regionKey == key {
@@ -110,7 +114,7 @@ final class LocationMonitor: NSObject, ObservableObject {
             }
         }
         refreshMonitoredCount()
-        stopDwellLocationUpdatesIfNeeded()
+        stopArrivalLocationUpdatesIfNeeded()
     }
 
     /// フォアグラウンド復帰時など、監視中の全領域の内外を再問い合わせする。
@@ -120,7 +124,7 @@ final class LocationMonitor: NSObject, ObservableObject {
             manager.requestState(for: region)
         }
         refreshMonitoredCount()
-        evaluateDwell(at: manager.location)
+        evaluateArrival(at: manager.location)
     }
 
     private func refreshMonitoredCount() {
@@ -151,7 +155,7 @@ final class LocationMonitor: NSObject, ObservableObject {
             identifier: key
         )
 
-        // 滞在判定用（店舗付近 約 75m）
+        // 到着判定用（店舗付近 約 75m）
         startCircularRegion(
             center: center,
             radius: DwellConfig.radiusMeters,
@@ -178,8 +182,12 @@ final class LocationMonitor: NSObject, ObservableObject {
 
     private func handleApproachEnter(identifier: String) {
         guard let reminder = reminderLookup[identifier] else { return }
+        markApproachInside(reminderKey: identifier)
         // 投稿前に同期的に「送信中／送信済み」を立て、requestState / didEnter の多重呼び出しを遮断する
-        guard !notifiedWhileInside.contains(identifier) else { return }
+        guard !notifiedWhileInside.contains(identifier) else {
+            evaluateArrival(at: manager.location)
+            return
+        }
         notifiedWhileInside.insert(identifier)
         persistNotifiedWhileInside()
 
@@ -199,28 +207,34 @@ final class LocationMonitor: NSObject, ObservableObject {
                 delay: ApproachSpeechSynthesizer.notificationSoundClearance
             )
         }
+        evaluateArrival(at: manager.location)
     }
 
     private func handleDwellEnter(reminderKey: String) {
         guard reminderLookup[reminderKey] != nil else { return }
-        if dwellEnteredAt[reminderKey] == nil {
-            dwellEnteredAt[reminderKey] = Date()
-            persistDwellEnteredAt()
-            dwellTrackingCount = dwellEnteredAt.count
-        }
-        startDwellLocationUpdatesIfNeeded()
-        evaluateDwell(at: manager.location)
+        // 到着圏進入で即時解除（滞在待ちなし）
+        finishDwellAutoClear(reminderKey: reminderKey)
     }
 
     private func handleDwellExit(reminderKey: String) {
-        clearDwellTracking(reminderKey: reminderKey)
-        stopDwellLocationUpdatesIfNeeded()
+        // 到着で即解除するため、計測待ちは持たない。退出は no-op。
+        _ = reminderKey
     }
 
-    private func clearDwellTracking(reminderKey: String) {
-        guard dwellEnteredAt.removeValue(forKey: reminderKey) != nil else { return }
-        persistDwellEnteredAt()
-        dwellTrackingCount = dwellEnteredAt.count
+    private func markApproachInside(reminderKey: String) {
+        guard reminderLookup[reminderKey] != nil else { return }
+        if approachInsideKeys.insert(reminderKey).inserted {
+            persistApproachInsideKeys()
+            dwellTrackingCount = approachInsideKeys.count
+        }
+        startArrivalLocationUpdatesIfNeeded()
+    }
+
+    private func markApproachOutside(reminderKey: String) {
+        guard approachInsideKeys.remove(reminderKey) != nil else { return }
+        persistApproachInsideKeys()
+        dwellTrackingCount = approachInsideKeys.count
+        stopArrivalLocationUpdatesIfNeeded()
     }
 
     private func clearNotifiedWhileInside(_ key: String) {
@@ -228,26 +242,15 @@ final class LocationMonitor: NSObject, ObservableObject {
         persistNotifiedWhileInside()
     }
 
-    private func evaluateDwell(at location: CLLocation?) {
-        let now = Date()
+    /// 現在地が到着圏内なら即クリア。接近圏のみでは消さない。
+    private func evaluateArrival(at location: CLLocation?) {
+        guard let location else { return }
         var toClear: [String] = []
 
-        for (reminderKey, enteredAt) in dwellEnteredAt {
-            guard let reminder = reminderLookup[reminderKey] else {
-                toClear.append(reminderKey)
-                continue
-            }
-
-            if let location {
-                let center = CLLocation(latitude: reminder.latitude, longitude: reminder.longitude)
-                let limit = DwellConfig.radiusMeters * DwellConfig.insideSlackFactor
-                if location.distance(from: center) > limit {
-                    // 退出イベント待ち。計測は維持（一時的な GPS 飛びを許容）
-                    continue
-                }
-            }
-
-            if now.timeIntervalSince(enteredAt) >= DwellConfig.requiredSeconds {
+        for (reminderKey, reminder) in reminderLookup {
+            let center = CLLocation(latitude: reminder.latitude, longitude: reminder.longitude)
+            let limit = DwellConfig.radiusMeters * DwellConfig.insideSlackFactor
+            if location.distance(from: center) <= limit {
                 toClear.append(reminderKey)
             }
         }
@@ -260,22 +263,24 @@ final class LocationMonitor: NSObject, ObservableObject {
     private func finishDwellAutoClear(reminderKey: String) {
         guard let uuid = UUID(uuidString: reminderKey) else { return }
         guard reminderLookup[reminderKey] != nil else {
-            clearDwellTracking(reminderKey: reminderKey)
-            stopDwellLocationUpdatesIfNeeded()
+            clearNotifiedWhileInside(reminderKey)
+            markApproachOutside(reminderKey: reminderKey)
             return
         }
-        clearDwellTracking(reminderKey: reminderKey)
         clearNotifiedWhileInside(reminderKey)
-        stopDwellLocationUpdatesIfNeeded()
+        markApproachOutside(reminderKey: reminderKey)
+        stopArrivalLocationUpdatesIfNeeded()
         onDwellAutoClear?(uuid)
     }
 
-    private func startDwellLocationUpdatesIfNeeded() {
-        guard !dwellEnteredAt.isEmpty else { return }
-        guard !isUpdatingForDwell else { return }
-        isUpdatingForDwell = true
+    private func startArrivalLocationUpdatesIfNeeded() {
+        guard !approachInsideKeys.isEmpty else { return }
+        guard !isUpdatingForArrival else { return }
+        isUpdatingForArrival = true
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
         manager.distanceFilter = 25
+        // 接近圏内の到着距離検知中は静止しても更新を止めない
+        manager.pausesLocationUpdatesAutomatically = false
         // Always 許可時のみ BG 更新。When In Use でも FG なら更新される。
         if manager.authorizationStatus == .authorizedAlways {
             manager.allowsBackgroundLocationUpdates = true
@@ -283,28 +288,13 @@ final class LocationMonitor: NSObject, ObservableObject {
         manager.startUpdatingLocation()
     }
 
-    private func stopDwellLocationUpdatesIfNeeded() {
-        guard dwellEnteredAt.isEmpty else { return }
-        guard isUpdatingForDwell else { return }
-        isUpdatingForDwell = false
+    private func stopArrivalLocationUpdatesIfNeeded() {
+        guard approachInsideKeys.isEmpty else { return }
+        guard isUpdatingForArrival else { return }
+        isUpdatingForArrival = false
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
-    }
-
-    private func persistDwellEnteredAt() {
-        let encoded = dwellEnteredAt.mapValues { $0.timeIntervalSince1970 }
-        UserDefaults.standard.set(encoded, forKey: PersistKeys.dwellEnteredAt)
-    }
-
-    private func loadDwellEnteredAt() {
-        guard let raw = UserDefaults.standard.dictionary(forKey: PersistKeys.dwellEnteredAt) as? [String: Double] else {
-            dwellEnteredAt = [:]
-            return
-        }
-        dwellEnteredAt = raw.mapValues { Date(timeIntervalSince1970: $0) }
-        if !dwellEnteredAt.isEmpty {
-            startDwellLocationUpdatesIfNeeded()
-        }
+        manager.pausesLocationUpdatesAutomatically = true
     }
 
     private func persistNotifiedWhileInside() {
@@ -316,6 +306,18 @@ final class LocationMonitor: NSObject, ObservableObject {
             notifiedWhileInside = Set(raw)
         } else {
             notifiedWhileInside = []
+        }
+    }
+
+    private func persistApproachInsideKeys() {
+        UserDefaults.standard.set(Array(approachInsideKeys), forKey: PersistKeys.approachInsideKeys)
+    }
+
+    private func loadApproachInsideKeys() {
+        if let raw = UserDefaults.standard.array(forKey: PersistKeys.approachInsideKeys) as? [String] {
+            approachInsideKeys = Set(raw)
+        } else {
+            approachInsideKeys = []
         }
     }
 
@@ -340,8 +342,8 @@ extension LocationMonitor: CLLocationManagerDelegate {
         Task { @MainActor in
             self.authorizationStatus = manager.authorizationStatus
             self.refreshMonitoredCount()
-            if manager.authorizationStatus == .authorizedAlways, !self.dwellEnteredAt.isEmpty {
-                self.startDwellLocationUpdatesIfNeeded()
+            if manager.authorizationStatus == .authorizedAlways, !self.approachInsideKeys.isEmpty {
+                self.startArrivalLocationUpdatesIfNeeded()
             }
         }
     }
@@ -362,6 +364,7 @@ extension LocationMonitor: CLLocationManagerDelegate {
                 self.handleDwellExit(reminderKey: Self.reminderKey(fromRegionId: region.identifier))
             } else {
                 self.clearNotifiedWhileInside(region.identifier)
+                self.markApproachOutside(reminderKey: region.identifier)
             }
         }
     }
@@ -379,6 +382,7 @@ extension LocationMonitor: CLLocationManagerDelegate {
                     self.handleDwellExit(reminderKey: Self.reminderKey(fromRegionId: region.identifier))
                 } else {
                     self.clearNotifiedWhileInside(region.identifier)
+                    self.markApproachOutside(reminderKey: region.identifier)
                 }
             }
         }
@@ -386,7 +390,7 @@ extension LocationMonitor: CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
-            self.evaluateDwell(at: locations.last)
+            self.evaluateArrival(at: locations.last)
         }
     }
 
@@ -404,6 +408,6 @@ extension LocationMonitor: CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        // 限定的な位置更新の失敗は滞在計測を止めない（領域 exit でリセット）
+        // 限定的な位置更新の失敗は到着判定を止めない（接近退出で停止）
     }
 }

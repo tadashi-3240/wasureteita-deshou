@@ -228,7 +228,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    LabeledContent("滞在計測中") {
+                    LabeledContent("到着距離監視中") {
                         Text("\(locationMonitor.dwellTrackingCount) 件")
                             .font(.system(size: 16))
                             .foregroundStyle(.secondary)
@@ -303,12 +303,12 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("店舗付近（目安 50〜100m）に約1分滞在すると、予定を自動解除して履歴へ移し、同じ予定は再通知しません。領域の進入・退出と、滞在中だけの限定的な位置更新で判定します。バックグラウンドでは正確な1分を保証できません（アプリが起きていないと計測が遅れることがあります）。")
+                    Text("店舗付近（目安 50〜100m）の到着圏に入ると、予定をすぐに自動解除して履歴へ移し、同じ予定は再通知しません。接近通知だけの距離では消えません。領域の進入と、接近圏内だけの限定的な位置更新による距離判定で解除します。iOS の領域監視は進入検知に数分かかることがあります。")
                         .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 4)
                 } header: {
-                    Text("自動解除（滞在）")
+                    Text("自動解除（到着）")
                         .font(.system(size: 16, weight: .semibold))
                 }
 
